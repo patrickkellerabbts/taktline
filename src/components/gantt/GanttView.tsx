@@ -626,6 +626,10 @@ export function GanttView({
   const leftListRef = useRef<HTMLDivElement>(null);
   const topRightRef = useRef<HTMLDivElement>(null);
   const rightBodyRef = useRef<HTMLDivElement>(null);
+  // Letzter px/Tag-Wert des Zoom-Preserve-Effects. Steht hier oben bei den
+  // übrigen Refs, damit die Scroll-Helper es setzen können ohne auf eine
+  // spätere Deklaration vorzugreifen.
+  const prevPxPerDayRef = useRef<number | null>(null);
 
   const rowH = density === 'compact' ? 24 : 28;
   const barH = density === 'compact' ? 14 : 18;
@@ -676,6 +680,25 @@ export function GanttView({
   );
   // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const visibleBars = useMemo(() => visibleNodes.map((n) => n.bar), [visibleNodes]);
+
+  // Meilensteine belegen (wenn vorhanden) die erste Timeline-Row, alle
+  // Task-Rows verschieben sich entsprechend nach unten.
+  const milestoneRowCount = milestones.length > 0 ? 1 : 0;
+
+  // Meilensteine pro Tag gruppieren — verhindert dass mehrere sich am selben
+  // Datum überlappen und unsichtbar werden. Bewusst außerhalb des JSX: im
+  // Render-Body dürfen die Click-Handler der Diamanten Refs anfassen.
+  const milestoneDayGroups = useMemo(() => {
+    const byDay = new Map<string, GanttMilestone[]>();
+    for (const m of milestones) {
+      if (!m.date) continue;
+      const key = toDayKey(m.date);
+      const arr = byDay.get(key) ?? [];
+      arr.push(m);
+      byDay.set(key, arr);
+    }
+    return Array.from(byDay.entries());
+  }, [milestones]);
 
   // Kritischer Pfad (CPM über FS-Dependencies)
   const criticalIds = useMemo(
@@ -849,6 +872,12 @@ export function GanttView({
     return Array.from(set);
   }, [bars]);
 
+  // Leitet sich über visibleBars vom collapsed-Set ab, das beim Auf-/Zuklappen
+  // kopiert-und-mutiert wird — dieselbe Kette wegen der visibleNodes/visibleBars
+  // schon ausgenommen sind. Der Compiler kann die Memoisierung darum nicht
+  // nachbauen; das manuelle useMemo muss bleiben (range hängt an mehreren
+  // Effect-Deps und darf nicht bei jedem Render neu entstehen).
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const range = useMemo(() => {
     if (visibleBars.length === 0 && milestones.length === 0) return null;
     const dates: number[] = [];
@@ -905,11 +934,73 @@ export function GanttView({
     if (topRightRef.current) topRightRef.current.scrollLeft = el.scrollLeft;
   }
 
+  // Effektive Dates für eine Bar: Drag-Vorschau oder Optimistic-Override.
+  function effectiveDates(bar: GanttBar): { start: Date; end: Date } {
+    if (drag && drag.id === bar.id) {
+      const d = drag.deltaDays;
+      const s = addDays(drag.origStart, drag.mode === 'right' ? 0 : d);
+      const e = addDays(drag.origEnd, drag.mode === 'left' ? 0 : d);
+      if (drag.mode === 'left' && e.getTime() - s.getTime() < 86_400_000) {
+        return { start: addDays(e, -1), end: e };
+      }
+      if (drag.mode === 'right' && e.getTime() - s.getTime() < 86_400_000) {
+        return { start: s, end: addDays(s, 1) };
+      }
+      return { start: s, end: e };
+    }
+    const o = optimistic[bar.id];
+    if (o) return o;
+    return { start: bar.start, end: bar.end };
+  }
+
+  // Scroll-into-view für eine Bar. Standard-Verhalten (force=false): scrollt
+  // nur wenn die Bar AKTUELL außerhalb der Viewport-Range liegt — vermeidet
+  // dass ein Click auf eine sichtbare Row die Liste unnötig neu zentriert.
+  // force=true zentriert immer (für externe Navigation: URL-Param, Konflikt-
+  // Popover, Bell-Notification etc.).
+  function scrollToBarId(id: string, options?: { force?: boolean }): boolean {
+    if (!range || !rightBodyRef.current || !leftListRef.current) return false;
+    const bar = bars.find((b) => b.id === id);
+    if (!bar) return false;
+    const rowIdx = visibleNodes.findIndex((n) => n.bar.id === id);
+    if (rowIdx < 0) return false;
+
+    const force = options?.force ?? false;
+    const eff = effectiveDates(bar);
+    const barLeft = diffDays(range.start, startOfDay(eff.start)) * pxPerDay;
+    const barRight = (diffDays(range.start, startOfDay(eff.end)) + 1) * pxPerDay;
+    const barCenter = (barLeft + barRight) / 2;
+    const el = rightBodyRef.current;
+
+    // Horizontal: zentrieren wenn force ODER die Bar (oder ein Teil davon)
+    // nicht in der aktuellen Viewport-Range sichtbar ist
+    const visL = el.scrollLeft;
+    const visR = visL + el.clientWidth;
+    if (force || barRight < visL || barLeft > visR) {
+      el.scrollLeft = Math.max(0, barCenter - el.clientWidth / 2);
+      if (topRightRef.current) topRightRef.current.scrollLeft = el.scrollLeft;
+      // prevPxPerDayRef syncen damit der Zoom-Preserve-Effect das nicht
+      // sofort wieder revertiert
+      prevPxPerDayRef.current = pxPerDay;
+    }
+
+    // Vertikal: zentrieren wenn force ODER die Row nicht im sichtbaren
+    // Bereich der Task-Liste ist
+    const targetY = (milestoneRowCount + rowIdx) * rowH;
+    const listEl = leftListRef.current;
+    const visT = listEl.scrollTop;
+    const visB = visT + listEl.clientHeight;
+    if (force || targetY + rowH < visT || targetY > visB) {
+      listEl.scrollTop = Math.max(0, targetY - listEl.clientHeight / 2);
+      el.scrollTop = listEl.scrollTop;
+    }
+    return true;
+  }
+
   // Beim ersten Mount auf "heute" zentrieren. Danach bei Zoom-Änderung NICHT
   // mehr zurückspringen — stattdessen den Mittelpunkt der Viewport-Datums-
   // Range beibehalten (so wirkt Zoom wie ein "rein-/raus-zoomen" auf das was
   // der User gerade betrachtet, statt jedes Mal nach today zu rasen).
-  const prevPxPerDayRef = useRef<number | null>(null);
   // Dep-Stabilisierung: range-Object wird bei jedem revalidate neu erzeugt
   // (neue Reference, gleiche Werte) → würde Effect unnötig triggern und das
   // Bild "springen" lassen. Stattdessen auf primitive Zeitstempel achten.
@@ -1195,50 +1286,6 @@ export function GanttView({
     if (topRightRef.current) topRightRef.current.scrollLeft = t.scrollLeft;
   }, [pxPerDay]);
 
-  // Scroll-into-view für eine Bar. Standard-Verhalten (force=false): scrollt
-  // nur wenn die Bar AKTUELL außerhalb der Viewport-Range liegt — vermeidet
-  // dass ein Click auf eine sichtbare Row die Liste unnötig neu zentriert.
-  // force=true zentriert immer (für externe Navigation: URL-Param, Konflikt-
-  // Popover, Bell-Notification etc.).
-  function scrollToBarId(id: string, options?: { force?: boolean }): boolean {
-    if (!range || !rightBodyRef.current || !leftListRef.current) return false;
-    const bar = bars.find((b) => b.id === id);
-    if (!bar) return false;
-    const rowIdx = visibleNodes.findIndex((n) => n.bar.id === id);
-    if (rowIdx < 0) return false;
-
-    const force = options?.force ?? false;
-    const eff = effectiveDates(bar);
-    const barLeft = diffDays(range.start, startOfDay(eff.start)) * pxPerDay;
-    const barRight = (diffDays(range.start, startOfDay(eff.end)) + 1) * pxPerDay;
-    const barCenter = (barLeft + barRight) / 2;
-    const el = rightBodyRef.current;
-
-    // Horizontal: zentrieren wenn force ODER die Bar (oder ein Teil davon)
-    // nicht in der aktuellen Viewport-Range sichtbar ist
-    const visL = el.scrollLeft;
-    const visR = visL + el.clientWidth;
-    if (force || barRight < visL || barLeft > visR) {
-      el.scrollLeft = Math.max(0, barCenter - el.clientWidth / 2);
-      if (topRightRef.current) topRightRef.current.scrollLeft = el.scrollLeft;
-      // prevPxPerDayRef syncen damit der Zoom-Preserve-Effect das nicht
-      // sofort wieder revertiert
-      prevPxPerDayRef.current = pxPerDay;
-    }
-
-    // Vertikal: zentrieren wenn force ODER die Row nicht im sichtbaren
-    // Bereich der Task-Liste ist
-    const targetY = (milestoneRowCount + rowIdx) * rowH;
-    const listEl = leftListRef.current;
-    const visT = listEl.scrollTop;
-    const visB = visT + listEl.clientHeight;
-    if (force || targetY + rowH < visT || targetY > visB) {
-      listEl.scrollTop = Math.max(0, targetY - listEl.clientHeight / 2);
-      el.scrollTop = listEl.scrollTop;
-    }
-    return true;
-  }
-
   // Scroll auf den ausgewählten Bar wenn sich initialSelectedId ändert
   // (sowohl bei Mount mit ?wp=<id> als auch bei späterer URL-Navigation).
   // Per-Value-Memo via Ref: pro initialSelectedId nur ein einziges Mal scrollen
@@ -1257,7 +1304,6 @@ export function GanttView({
   // Pending-Scroll: programmatische Navigation (Konflikt-Popover) setzt eine
   // Ziel-ID; sobald visibleNodes diese ID enthält (nach evtl. Re-Render mit
   // aufgeklappten Parents), scrollen wir und resetten den Pending-State.
-  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (!pendingScroll) return;
     if (scrollToBarId(pendingScroll.id, { force: pendingScroll.force })) {
@@ -1285,26 +1331,6 @@ export function GanttView({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- absichtlich nicht alle Deps
   }, [pendingMilestoneScroll, range]);
-  /* eslint-enable react-hooks/set-state-in-effect */
-
-  // Effektive Dates für eine Bar: Drag-Vorschau oder Optimistic-Override.
-  function effectiveDates(bar: GanttBar): { start: Date; end: Date } {
-    if (drag && drag.id === bar.id) {
-      const d = drag.deltaDays;
-      const s = addDays(drag.origStart, drag.mode === 'right' ? 0 : d);
-      const e = addDays(drag.origEnd, drag.mode === 'left' ? 0 : d);
-      if (drag.mode === 'left' && e.getTime() - s.getTime() < 86_400_000) {
-        return { start: addDays(e, -1), end: e };
-      }
-      if (drag.mode === 'right' && e.getTime() - s.getTime() < 86_400_000) {
-        return { start: s, end: addDays(s, 1) };
-      }
-      return { start: s, end: e };
-    }
-    const o = optimistic[bar.id];
-    if (o) return o;
-    return { start: bar.start, end: bar.end };
-  }
 
   // PointerDown auf Bar startet Drag (Modus aus Klick-Zone).
   function startDrag(bar: GanttBar, mode: DragState['mode'], clientX: number) {
@@ -1422,7 +1448,6 @@ export function GanttView({
       ? diffDays(range.start, today) * pxPerDay
       : null;
 
-  const milestoneRowCount = milestones.length > 0 ? 1 : 0;
   const totalRows = milestoneRowCount + visibleNodes.length;
   const timelineHeight = totalRows * rowH;
 
@@ -2021,72 +2046,60 @@ export function GanttView({
                 />
               )}
 
-              {(() => {
-                // Gruppiere Meilensteine pro Tag — verhindert dass mehrere
-                // sich am selben Datum überlappen und unsichtbar werden.
-                const byDay = new Map<string, GanttMilestone[]>();
-                for (const m of milestones) {
-                  if (!m.date) continue;
-                  const key = toDayKey(m.date);
-                  const arr = byDay.get(key) ?? [];
-                  arr.push(m);
-                  byDay.set(key, arr);
-                }
-                return Array.from(byDay.entries()).map(([key, group]) => {
-                  const date = group[0].date as Date;
-                  const x = diffDays(range.start, startOfDay(date)) * pxPerDay;
-                  const y = rowH / 2;
-                  const count = group.length;
-                  const titleText = group
-                    .map((m) => `%${m.gitlabMilestoneId} ${m.text}`)
-                    .join('\n');
-                  // Click: bei einzelnem Meilenstein direkt öffnen, bei
-                  // Cluster (count > 1) Auswahl-Popover anzeigen.
-                  return (
-                    <g
-                      key={key}
-                      data-interactive="1"
-                      style={{ cursor: 'pointer' }}
-                      onClick={(e) => onMilestoneClusterClick(group, e.currentTarget)}
-                    >
-                      <polygon
-                        points={`${x},${y - MILESTONE_SIZE / 2} ${x + MILESTONE_SIZE / 2},${y} ${x},${y + MILESTONE_SIZE / 2} ${x - MILESTONE_SIZE / 2},${y}`}
-                        fill={selectedMilestoneId === group[0].id ? 'var(--color-accent)' : 'var(--color-status-milestone)'}
-                        stroke="#713f12"
-                        strokeWidth={1}
-                      />
-                      {count > 1 && (
-                        <>
-                          <circle
-                            cx={x + MILESTONE_SIZE / 2 + 2}
-                            cy={y - MILESTONE_SIZE / 2 - 2}
-                            r={6}
-                            fill="#b42318"
-                            stroke="#fff"
-                            strokeWidth={1}
-                          />
-                          <text
-                            x={x + MILESTONE_SIZE / 2 + 2}
-                            y={y - MILESTONE_SIZE / 2 - 2}
-                            textAnchor="middle"
-                            dominantBaseline="central"
-                            fontSize={8}
-                            fontWeight={700}
-                            fill="#fff"
-                            style={{ pointerEvents: 'none', userSelect: 'none' }}
-                          >
-                            {count}
-                          </text>
-                        </>
-                      )}
-                      <title>
-                        {fmtDateShort(date)} ({count}× Meilenstein){'\n'}
-                        {titleText}
-                      </title>
-                    </g>
-                  );
-                });
-              })()}
+              {milestoneDayGroups.map(([key, group]) => {
+                const date = group[0].date as Date;
+                const x = diffDays(range.start, startOfDay(date)) * pxPerDay;
+                const y = rowH / 2;
+                const count = group.length;
+                const titleText = group
+                  .map((m) => `%${m.gitlabMilestoneId} ${m.text}`)
+                  .join('\n');
+                // Click: bei einzelnem Meilenstein direkt öffnen, bei
+                // Cluster (count > 1) Auswahl-Popover anzeigen.
+                return (
+                  <g
+                    key={key}
+                    data-interactive="1"
+                    style={{ cursor: 'pointer' }}
+                    onClick={(e) => onMilestoneClusterClick(group, e.currentTarget)}
+                  >
+                    <polygon
+                      points={`${x},${y - MILESTONE_SIZE / 2} ${x + MILESTONE_SIZE / 2},${y} ${x},${y + MILESTONE_SIZE / 2} ${x - MILESTONE_SIZE / 2},${y}`}
+                      fill={selectedMilestoneId === group[0].id ? 'var(--color-accent)' : 'var(--color-status-milestone)'}
+                      stroke="#713f12"
+                      strokeWidth={1}
+                    />
+                    {count > 1 && (
+                      <>
+                        <circle
+                          cx={x + MILESTONE_SIZE / 2 + 2}
+                          cy={y - MILESTONE_SIZE / 2 - 2}
+                          r={6}
+                          fill="#b42318"
+                          stroke="#fff"
+                          strokeWidth={1}
+                        />
+                        <text
+                          x={x + MILESTONE_SIZE / 2 + 2}
+                          y={y - MILESTONE_SIZE / 2 - 2}
+                          textAnchor="middle"
+                          dominantBaseline="central"
+                          fontSize={8}
+                          fontWeight={700}
+                          fill="#fff"
+                          style={{ pointerEvents: 'none', userSelect: 'none' }}
+                        >
+                          {count}
+                        </text>
+                      </>
+                    )}
+                    <title>
+                      {fmtDateShort(date)} ({count}× Meilenstein){'\n'}
+                      {titleText}
+                    </title>
+                  </g>
+                );
+              })}
 
               {/* Dependency-Pfeile zwischen Bars (FS/SS/FF/SF) */}
               {showDeps && (() => {

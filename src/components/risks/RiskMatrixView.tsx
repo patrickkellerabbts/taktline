@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useTransition, useEffect } from 'react';
+import { useState, useMemo, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   DndContext,
@@ -106,48 +106,46 @@ export function RiskMatrixView({
 
   // Optimistic-Layer: nach einem Drop wird die neue Position SOFORT lokal
   // dargestellt, bevor die Server-Action fertig ist. Beim revalidate kommen
-  // die Props mit den neuen Werten — der Eintrag bleibt aber bestehen bis
-  // ein useEffect ihn beim nächsten Render aufräumt (nur dann wenn die
-  // Server-Daten die optimistischen Werte einholen).
+  // die Props mit den neuen Werten und der Draft ist überflüssig.
   const [draftMoves, setDraftMoves] = useState<
     Map<string, { mode: 'pre' | 'post'; probability: number; impact: number }>
   >(new Map());
-  useEffect(() => {
-    // Drafts aufräumen wenn der Server-State sie eingeholt hat.
-    setDraftMoves((prev) => {
-      let changed = false;
-      const next = new Map(prev);
-      for (const [id, m] of prev) {
-        const serverRisk = risks.find((r) => r.id === id);
-        if (!serverRisk) {
-          next.delete(id);
-          changed = true;
-          continue;
-        }
-        const serverProb =
-          m.mode === 'pre' ? serverRisk.probabilityPre : serverRisk.probabilityPost ?? serverRisk.probabilityPre;
-        const serverImpact =
-          m.mode === 'pre' ? serverRisk.impactPre : serverRisk.impactPost ?? serverRisk.impactPre;
-        if (serverProb === m.probability && serverImpact === m.impact) {
-          next.delete(id);
-          changed = true;
-        }
+
+  // Drafts die der Server-State eingeholt hat (oder deren Risk verschwunden
+  // ist) sind obsolet. Statt sie in einem Effect wegzuräumen — was einen
+  // zusätzlichen Render-Durchlauf kostet — filtern wir sie hier beim Ableiten
+  // raus. Der State selbst wird beim nächsten Drop kompaktiert (onDragEnd).
+  const pendingMoves = useMemo(() => {
+    if (draftMoves.size === 0) return draftMoves;
+    const next = new Map(draftMoves);
+    for (const [id, m] of draftMoves) {
+      const serverRisk = risks.find((r) => r.id === id);
+      if (!serverRisk) {
+        next.delete(id);
+        continue;
       }
-      return changed ? next : prev;
-    });
-  }, [risks]);
+      const serverProb =
+        m.mode === 'pre' ? serverRisk.probabilityPre : serverRisk.probabilityPost ?? serverRisk.probabilityPre;
+      const serverImpact =
+        m.mode === 'pre' ? serverRisk.impactPre : serverRisk.impactPost ?? serverRisk.impactPre;
+      if (serverProb === m.probability && serverImpact === m.impact) {
+        next.delete(id);
+      }
+    }
+    return next;
+  }, [draftMoves, risks]);
 
   // Effektive Risk-Liste = Server-State mit lokalen Optimistic-Patches überlagert.
   const effectiveRisks = useMemo(() => {
-    if (draftMoves.size === 0) return risks;
+    if (pendingMoves.size === 0) return risks;
     return risks.map((r) => {
-      const m = draftMoves.get(r.id);
+      const m = pendingMoves.get(r.id);
       if (!m) return r;
       return m.mode === 'pre'
         ? { ...r, probabilityPre: m.probability, impactPre: m.impact }
         : { ...r, probabilityPost: m.probability, impactPost: m.impact };
     });
-  }, [risks, draftMoves]);
+  }, [risks, pendingMoves]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
@@ -189,8 +187,10 @@ export function RiskMatrixView({
     const newI = Number(m[2]);
     // Optimistic-Update: Karte sofort lokal in die neue Zelle verschieben,
     // damit es kein "Zurückspringen + dann wieder vorwärts"-Flicker gibt.
-    setDraftMoves((prev) => {
-      const next = new Map(prev);
+    // Von pendingMoves ausgehen statt vom rohen State: so fallen bereits
+    // eingeholte Drafts bei jedem Drop mit raus und die Map bleibt klein.
+    setDraftMoves(() => {
+      const next = new Map(pendingMoves);
       next.set(riskId, { mode, probability: newP, impact: newI });
       return next;
     });
