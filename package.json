@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "license": "MIT",
+  "config": {
+    "demoDb": "postgresql://gantt:gantt@localhost:5433/taktline_demo?schema=public"
+  },
   "scripts": {
     "dev": "next dev -p 3043",
     "build": "next build",
@@ -16,6 +19,11 @@
     "db:down": "docker-compose down",
     "db:migrate:create": "prisma migrate dev --create-only",
     "db:migrate:deploy": "prisma migrate deploy",
+    "demo:reset": "docker exec gantt-postgres psql -U gantt -d gantt -c 'DROP DATABASE IF EXISTS taktline_demo' -c 'CREATE DATABASE taktline_demo OWNER gantt' && npm run demo:migrate",
+    "demo:migrate": "DATABASE_URL=$npm_package_config_demoDb prisma migrate deploy",
+    "demo:seed": "DATABASE_URL=$npm_package_config_demoDb tsx scripts/seed-demo.ts",
+    "demo:dev": "DATABASE_URL=$npm_package_config_demoDb next dev -p 3043",
+    "demo:screenshots": "tsx scripts/screenshots.ts",
     "prod:build": "BUILD_SHA=$(git rev-parse --short HEAD 2>/dev/null || echo unknown) docker compose -f compose.prod.yml build",
     "prod:up": "BUILD_SHA=$(git rev-parse --short HEAD 2>/dev/null || echo unknown) docker compose -f compose.prod.yml up -d --build",
     "prod:down": "docker compose -f compose.prod.yml down",
@@ -49,8 +57,10 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
     "pino-pretty": "^13.1.3",
+    "playwright": "^1.62.1",
     "prisma": "^7.8.0",
     "tailwindcss": "^4",
+    "tsx": "^4.23.11",
     "typescript": "^5"
   }
 }

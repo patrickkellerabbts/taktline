@@ -4,6 +4,27 @@ Projektmanagement-Tool als Bridge zwischen GitLab CE und vollwertiger PM-Softwar
 
 > **Status:** Single-Tenant Internal-Tool, im produktiven Einsatz. Hier öffentlich als Portfolio-/Beispiel-Repo. Vollständige Anforderungen siehe [`REQUIREMENTS.md`](./REQUIREMENTS.md), Design-Vorgaben in [`DESIGN_BRIEF.md`](./DESIGN_BRIEF.md), Architektur-Notizen in [`ARCHITECTURE.md`](./ARCHITECTURE.md).
 
+![Gantt-Ansicht mit Hierarchie, Dependency-Pfeilen und Inspector](docs/screenshots/gantt-overview.png)
+
+<details>
+<summary>Weitere Ansichten: Risikomatrix, Ressourcen, Berichte</summary>
+
+**Risikomatrix** — 5×5 nach Wahrscheinlichkeit und Auswirkung, Karten per Drag-and-Drop verschiebbar, umschaltbar zwischen Pre- und Post-Mitigation:
+
+![Risikomatrix](docs/screenshots/risk-matrix.png)
+
+**Ressourcen** — Auslastung pro Person und Kalenderwoche:
+
+![Ressourcen-Heatmap](docs/screenshots/resources.png)
+
+**Berichte** — Fortschritt, offene Konflikte, Velocity und Meilenstein-Status:
+
+![Berichte](docs/screenshots/reports.png)
+
+</details>
+
+> Alle Screenshots zeigen das mitgelieferte Demo-Projekt — erfundene Daten, siehe [Demo-Umgebung](#demo-umgebung--screenshots).
+
 ---
 
 ## Features
@@ -132,6 +153,51 @@ npm run dev
 | `npm run db:migrate` | Migration generieren + anwenden (Production-Style) |
 | `npm run db:studio` | Prisma Studio (DB-GUI) im Browser |
 | `npm run db:generate` | Prisma Client neu generieren |
+| `npm run demo:reset` | Demo-DB neu anlegen + migrieren |
+| `npm run demo:seed` | Demo-Daten schreiben (siehe unten) |
+| `npm run demo:dev` | Dev-Server gegen die Demo-DB |
+| `npm run demo:screenshots` | Doku-Screenshots neu erzeugen |
+
+---
+
+## Demo-Umgebung & Screenshots
+
+Die Bilder oben stammen nicht aus einem echten Projekt, sondern aus einem
+Seed mit frei erfundenen Daten. Der gleiche Seed ist auch praktisch, um die
+App ohne GitLab-Zugang anzuschauen: er legt ein Beispielprojekt mit 26
+Aufgaben, Hierarchie, Dependencies, Meilensteinen, Auslastung und Risiken an —
+plus eine Session, die den OAuth-Login überspringt.
+
+Alles läuft gegen eine **separate Datenbank** (`taktline_demo`) im selben
+Postgres-Container. Die Dev-DB bleibt unangetastet.
+
+```bash
+npm run db:up          # Postgres, falls noch nicht läuft
+npm run demo:reset     # Demo-DB anlegen + Schema migrieren
+npm run demo:seed      # Beispieldaten schreiben
+npm run demo:dev       # Dev-Server gegen die Demo-DB (Port 3043)
+```
+
+Danach ist **http://localhost:3043** ohne Login als Demo-Nutzerin bedienbar.
+
+Screenshots neu erzeugen (Dev-Server aus dem letzten Schritt muss laufen):
+
+```bash
+npx playwright install chromium   # einmalig
+npm run demo:screenshots          # schreibt nach docs/screenshots/
+```
+
+Was wo definiert ist:
+
+| Datei | Inhalt |
+|---|---|
+| [`scripts/seed-demo.ts`](scripts/seed-demo.ts) | Beispieldaten — Personen, Aufgaben, Dependencies, Risiken |
+| [`scripts/screenshots.ts`](scripts/screenshots.ts) | Welche Seiten aufgenommen werden, Fenstergrössen, Vorbereitungsschritte |
+| [`scripts/demo-constants.ts`](scripts/demo-constants.ts) | Session-Token + Projekt-ID, die beide Scripts teilen |
+
+Der Seed ist bewusst destruktiv: er leert die Demo-DB vor jedem Lauf und
+setzt ein festes Bezugsdatum, damit wiederholte Läufe identische Bilder
+liefern.
 
 ---
 
