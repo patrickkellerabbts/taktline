@@ -1,0 +1,53 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: taktline-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-taktline}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env.production}
+      POSTGRES_DB: ${POSTGRES_DB:-taktline}
+    volumes:
+      - taktline-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-taktline} -d ${POSTGRES_DB:-taktline}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    # Kein ports-Mapping nach außen — Postgres ist nur fürs App-Compose-Netz erreichbar.
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        # Git-SHA für die /about-Seite. .git ist via .dockerignore vom Build
+        # ausgeschlossen, daher reichen wir den SHA als Build-Arg durch.
+        # User setzt BUILD_SHA=$(git rev-parse --short HEAD) vor dem build,
+        # oder lässt's auf "unknown" defaulten.
+        BUILD_SHA: ${BUILD_SHA:-unknown}
+    image: taktline:latest
+    container_name: taktline-app
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-taktline}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-taktline}?schema=public"
+      AUTH_URL: ${AUTH_URL:?Set AUTH_URL to the public URL Traefik exposes}
+      AUTH_SECRET: ${AUTH_SECRET:?Set AUTH_SECRET (openssl rand -base64 32)}
+      GITLAB_URL: ${GITLAB_URL:?Set GITLAB_URL}
+      GITLAB_CLIENT_ID: ${GITLAB_CLIENT_ID:?Set GITLAB_CLIENT_ID}
+      GITLAB_CLIENT_SECRET: ${GITLAB_CLIENT_SECRET:?Set GITLAB_CLIENT_SECRET}
+      TOKEN_ENCRYPTION_KEY: ${TOKEN_ENCRYPTION_KEY:?Set TOKEN_ENCRYPTION_KEY (openssl rand -base64 32)}
+      WEBHOOK_PUBLIC_URL: ${WEBHOOK_PUBLIC_URL:-${AUTH_URL}}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      NODE_ENV: production
+      RECONCILIATION_ENABLED: ${RECONCILIATION_ENABLED:-true}
+      RECONCILIATION_INTERVAL_MINUTES: ${RECONCILIATION_INTERVAL_MINUTES:-15}
+      RECONCILIATION_SECRET: ${RECONCILIATION_SECRET:-}
+    ports:
+      - "${APP_PORT:-3043}:3043"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  taktline-postgres-data:

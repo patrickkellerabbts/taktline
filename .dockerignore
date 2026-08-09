@@ -1,0 +1,35 @@
+.git
+.gitignore
+.gitlab-ci.yml
+node_modules
+.next
+.env
+.env.local
+.env.development
+.env.test
+.vscode
+.idea
+.claude
+.DS_Store
+
+# Docs / dev only
+README.md
+DESIGN_BRIEF.md
+REQUIREMENTS.md
+AGENTS.md
+CLAUDE.md
+*.log
+coverage
+.nyc_output
+
+# Build artefacts
+build
+dist
+out
+
+# Dev DB volumes / runtime data
+gantt-postgres-data
+postgres-data
+
+# Local tooling
+.npmrc

@@ -1,0 +1,798 @@
+@import "tailwindcss";
+
+/* ── Taktline Design Tokens ───────────────────────────────────
+   Klassisch / Enterprise. Dichte. Orange-Akzent (GitLab-Nähe).
+   Inter + JetBrains Mono. */
+@theme inline {
+  --color-bg: #f5f5f4;
+  --color-bg-canvas: #ecebe7;
+  --color-surface: #ffffff;
+  --color-surface-2: #fafaf9;
+  --color-surface-3: #f1f1ef;
+  --color-hover: #f5f5f4;
+  --color-selected: #fff4e6;
+  --color-selected-2: #ffe8c9;
+
+  --color-border: #e2e1dd;
+  --color-border-2: #cfcec8;
+  --color-border-3: #b8b6ad;
+  --color-grid-line: #ebeae5;
+  --color-grid-line-2: #d8d6cf;
+
+  --color-ink: #1c1b18;
+  --color-ink-2: #44423d;
+  --color-ink-3: #76746c;
+  --color-ink-4: #a09e95;
+
+  --color-accent: #e8590c;
+  --color-accent-h: #d24a04;
+  --color-accent-soft: #fff1e6;
+
+  --color-status-open: #1f6feb;
+  --color-status-open-2: #1857b8;
+  --color-status-done: #1a7f37;
+  --color-status-done-2: #15672c;
+  --color-status-summary: #2b2a26;
+  --color-status-milestone: #a16207;
+  --color-status-blocked: #b42318;
+  --color-today-line: #d92d20;
+
+  --font-sans: var(--font-inter, "Inter"), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains, "JetBrains Mono"), ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+:root {
+  /* Maße / Geometrie (nicht-Tailwind-typische Tokens) */
+  --accent-ring: rgba(232, 89, 12, 0.30);
+  --row-h: 28px;
+  --row-h-compact: 24px;
+  --bar-h: 18px;
+  --milestone: 12px;
+  --header-h: 40px;
+  --fs-xs: 11px;
+  --fs-sm: 12px;
+  --fs-base: 13px;
+  --fs-md: 14px;
+  --fs-lg: 16px;
+  --fs-xl: 20px;
+  --fs-2xl: 26px;
+  --r-1: 2px;
+  --r-2: 4px;
+  --r-3: 6px;
+  --r-4: 8px;
+  --shadow-1: 0 1px 0 rgba(0,0,0,0.03), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-2: 0 4px 14px rgba(0,0,0,0.08), 0 1px 3px rgba(0,0,0,0.05);
+}
+
+/* ── Reset / Base ─────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; height: 100%; }
+body {
+  font-family: var(--font-sans);
+  font-size: var(--fs-base);
+  color: var(--color-ink);
+  background: var(--color-bg-canvas);
+  font-feature-settings: 'cv11', 'ss01';
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+button { font-family: inherit; }
+.mono { font-family: var(--font-mono); font-feature-settings: 'tnum'; }
+.tabnum { font-variant-numeric: tabular-nums; }
+
+/* ── App-Frame ────────────────────────────────────────────── */
+.app {
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: var(--fs-base);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden; /* Page selbst scrollt nicht — innere Scroll-Hosts übernehmen */
+}
+
+/* ── Buttons ──────────────────────────────────────────────── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 12px;
+  border-radius: var(--r-2);
+  border: 1px solid var(--color-border-2);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  line-height: 1;
+  cursor: pointer;
+  transition: background .12s, border-color .12s, box-shadow .12s;
+  white-space: nowrap;
+  text-decoration: none;
+}
+.btn:hover { background: var(--color-surface-3); border-color: var(--color-border-3); }
+.btn:active { background: var(--color-surface-2); }
+.btn:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--accent-ring); border-color: var(--color-accent); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btn--primary {
+  background: var(--color-accent); border-color: var(--color-accent-h); color: #fff;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.16);
+}
+.btn--primary:hover { background: var(--color-accent-h); border-color: var(--color-accent-h); }
+.btn--primary:focus-visible { box-shadow: 0 0 0 2px var(--accent-ring), inset 0 1px 0 rgba(255,255,255,0.16); }
+
+.btn--ghost { background: transparent; border-color: transparent; }
+.btn--ghost:hover { background: var(--color-surface-3); border-color: transparent; }
+
+.btn--sm { height: 24px; padding: 0 8px; font-size: var(--fs-xs); }
+.btn--lg { height: 36px; padding: 0 16px; font-size: var(--fs-md); }
+.btn--icon { width: 28px; padding: 0; justify-content: center; }
+.btn--icon.btn--sm { width: 24px; }
+
+/* ── Inputs ───────────────────────────────────────────────── */
+.input {
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--color-border-2);
+  border-radius: var(--r-2);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font: 500 var(--fs-sm)/1 var(--font-sans);
+  outline: none;
+  transition: border-color .12s, box-shadow .12s;
+  min-width: 0;
+}
+.input:hover { border-color: var(--color-border-3); }
+.input:focus { border-color: var(--color-accent); box-shadow: 0 0 0 2px var(--accent-ring); }
+.input::placeholder { color: var(--color-ink-4); }
+.input--lg { height: 36px; font-size: var(--fs-md); padding: 0 10px; }
+
+.label {
+  display: block;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--color-ink-2);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 6px;
+}
+
+/* ── Card ─────────────────────────────────────────────────── */
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--r-3);
+  box-shadow: var(--shadow-1);
+}
+.card__hd {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--color-surface-2);
+  border-top-left-radius: var(--r-3);
+  border-top-right-radius: var(--r-3);
+}
+.card__bd { padding: 14px; }
+.card__ft {
+  padding: 10px 14px;
+  border-top: 1px solid var(--color-border);
+  background: var(--color-surface-2);
+  border-bottom-left-radius: var(--r-3);
+  border-bottom-right-radius: var(--r-3);
+}
+
+/* ── Chips / Badges ───────────────────────────────────────── */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 9px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  background: var(--color-surface-3);
+  color: var(--color-ink-2);
+  border: 1px solid var(--color-border);
+  font-family: var(--font-sans);
+  line-height: 1;
+  white-space: nowrap;
+}
+.chip--open    { background: #e7f0ff; color: #1849a9; border-color: #c7dafa; }
+.chip--done    { background: #e6f4ea; color: #1a7f37; border-color: #c8e6d0; }
+.chip--block   { background: #fbe9e7; color: #b42318; border-color: #f4c7c0; }
+.chip--ms      { background: #fdf3d8; color: #845909; border-color: #f0dca0; }
+.chip--summary { background: #ebeae5; color: #2b2a26; border-color: #d8d6cf; }
+.chip--accent  { background: var(--color-accent-soft); color: var(--color-accent-h); border-color: #f5cba0; }
+
+.dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  display: inline-block; flex-shrink: 0;
+}
+.dot--open    { background: var(--color-status-open); }
+.dot--done    { background: var(--color-status-done); }
+.dot--summary { background: var(--color-status-summary); }
+.dot--ms      { background: var(--color-status-milestone); }
+.dot--block   { background: var(--color-status-blocked); }
+
+/* ── Ribbon-Toolbar ──────────────────────────────────────── */
+.ribbon {
+  display: flex;
+  align-items: stretch;
+  background: var(--color-surface-2);
+  border-bottom: 1px solid var(--color-border);
+  height: 76px;
+  padding: 6px 8px 10px;
+  gap: 0;
+}
+.ribbon__group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 8px;
+  border-right: 1px solid var(--color-border);
+  min-width: 0;
+}
+.ribbon__group:last-child { border-right: none; }
+.ribbon__tools {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 1;
+}
+.ribbon__label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-ink-3);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.tool {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 6px;
+  border-radius: var(--r-2);
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--color-ink-2);
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 500;
+  min-width: 36px;
+  transition: background .12s, border-color .12s, color .12s;
+}
+.tool:hover { background: var(--color-surface-3); color: var(--color-ink); }
+.tool[aria-pressed="true"] { background: var(--color-accent-soft); color: var(--color-accent-h); border-color: #f5cba0; }
+.tool--row { flex-direction: row; gap: 6px; min-width: 0; padding: 4px 8px; }
+
+/* ── Segmented control ──────────────────────────────────── */
+.seg {
+  display: inline-flex;
+  border: 1px solid var(--color-border-2);
+  border-radius: var(--r-2);
+  background: var(--color-surface);
+  overflow: hidden;
+}
+.seg button {
+  background: transparent;
+  border: none;
+  height: 26px;
+  padding: 0 10px;
+  font: 500 var(--fs-sm)/1 var(--font-sans);
+  color: var(--color-ink-2);
+  cursor: pointer;
+  border-right: 1px solid var(--color-border);
+  transition: background .12s, color .12s;
+}
+.seg button:last-child { border-right: none; }
+.seg button:hover { background: var(--color-surface-3); color: var(--color-ink); }
+.seg button[aria-pressed="true"] { background: var(--color-ink); color: #fff; }
+
+/* ── Topbar / Subbar ─────────────────────────────────────── */
+.topbar {
+  height: 48px;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  gap: 14px;
+  flex-shrink: 0;
+}
+.topbar__brand {
+  display: flex; align-items: center; gap: 8px;
+  color: var(--color-ink); text-decoration: none;
+  font-weight: 600; font-size: var(--fs-md);
+  letter-spacing: -0.01em;
+}
+.topbar__nav { display: flex; gap: 2px; }
+.topbar__nav a {
+  padding: 6px 10px;
+  border-radius: var(--r-2);
+  color: var(--color-ink-2);
+  text-decoration: none;
+  font-size: var(--fs-sm);
+  font-weight: 500;
+}
+.topbar__nav a:hover { background: var(--color-surface-3); color: var(--color-ink); }
+.topbar__nav a[aria-current="page"] { background: var(--color-surface-3); color: var(--color-ink); }
+.topbar__spacer { flex: 1; }
+.topbar__user {
+  display: flex; align-items: center; gap: 8px;
+  font-size: var(--fs-sm); color: var(--color-ink-2);
+}
+
+.subbar {
+  height: 44px;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  gap: 12px;
+  flex-shrink: 0;
+}
+.subbar__crumb-link {
+  border-radius: var(--r-2);
+  padding: 2px 4px;
+  margin: -2px -4px;
+  transition: background .12s, color .12s;
+}
+
+/* Komment-Markdown-Body — kompakte Spacing damit Listen + Paragraphs nicht
+   zu viel Höhe einnehmen, Bilder mit Border-Radius. */
+.comment-body p,
+.comment-body ul,
+.comment-body ol,
+.comment-body blockquote {
+  margin: 0 0 6px 0;
+}
+.comment-body p:last-child,
+.comment-body ul:last-child,
+.comment-body ol:last-child {
+  margin-bottom: 0;
+}
+.comment-body ul,
+.comment-body ol {
+  padding-left: 18px;
+}
+.comment-body blockquote {
+  border-left: 2px solid var(--color-border-2);
+  padding: 2px 0 2px 8px;
+  color: var(--color-ink-2);
+}
+.comment-body pre {
+  background: var(--color-surface-3);
+  padding: 6px 8px;
+  border-radius: 4px;
+  overflow-x: auto;
+  font-size: 11px;
+  margin: 0 0 6px 0;
+}
+.comment-body pre code {
+  background: transparent !important;
+  padding: 0 !important;
+  font-size: 11px !important;
+}
+.comment-body h1,
+.comment-body h2,
+.comment-body h3,
+.comment-body h4 {
+  margin: 4px 0;
+  font-size: 13px;
+}
+.comment-body hr {
+  border: none;
+  border-top: 1px solid var(--color-border);
+  margin: 6px 0;
+}
+.comment-body table {
+  border-collapse: collapse;
+  font-size: 11px;
+}
+.comment-body th,
+.comment-body td {
+  border: 1px solid var(--color-border);
+  padding: 2px 6px;
+}
+
+/* Indeterminate-Progress-Bar während Vorbereitungs-Phasen (Baseline-Menü etc).
+   Schmaler Strich wandert von links nach rechts. */
+.baseline-indeterminate {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 30%;
+  background: var(--color-accent);
+  border-radius: 2px;
+  animation: baseline-indeterminate 1.2s ease-in-out infinite;
+}
+@keyframes baseline-indeterminate {
+  0%   { left: -30%; }
+  100% { left: 100%; }
+}
+
+/* Tech-Stack-Grid auf der About-Page: Grid passt sich der Containerbreite
+   an (1-4 Spalten). Border-Trick via gap+background — die 1px Lücke
+   zwischen den Tiles ist die border-color, jede Tile hat eigenen
+   surface-background. Funktioniert unabhängig von der Spaltenanzahl. */
+.tech-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 1px;
+  background: var(--color-border);
+}
+.tech-grid > * {
+  background: var(--color-surface);
+  padding: 12px 16px;
+}
+.subbar__crumb-link:hover {
+  color: var(--color-ink) !important;
+  background: var(--color-surface-2);
+}
+
+/* ── Avatar ──────────────────────────────────────────────── */
+.avatar {
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #e8590c, #a93903);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  letter-spacing: -0.02em;
+  flex-shrink: 0;
+}
+.avatar--sm { width: 18px; height: 18px; font-size: 9px; }
+.avatar--lg { width: 32px; height: 32px; font-size: 12px; }
+.avatar--c1 { background: linear-gradient(135deg, #4b6bfb, #2c4ade); }
+.avatar--c2 { background: linear-gradient(135deg, #1a7f37, #0f5f24); }
+.avatar--c3 { background: linear-gradient(135deg, #845909, #5c3e05); }
+.avatar--c4 { background: linear-gradient(135deg, #7c3aed, #5b21b6); }
+.avatar--c5 { background: linear-gradient(135deg, #b42318, #84130b); }
+.avatar--c6 { background: linear-gradient(135deg, #0e7490, #094f64); }
+
+/* ── Tabelle ─────────────────────────────────────────────── */
+.tbl-head {
+  display: flex;
+  background: var(--color-surface-3);
+  border-bottom: 1px solid var(--color-border-2);
+  height: var(--header-h);
+  align-items: center;
+  position: sticky; top: 0; z-index: 2;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--color-ink-2);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.tbl-head__cell {
+  padding: 0 8px;
+  border-right: 1px solid var(--color-border);
+  height: 100%;
+  display: flex;
+  align-items: center;
+  user-select: none;
+}
+.tbl-head__cell:last-child { border-right: none; }
+
+.tbl-row {
+  display: flex;
+  height: var(--row-h);
+  border-bottom: 1px solid var(--color-grid-line);
+  font-size: var(--fs-sm);
+  color: var(--color-ink);
+  align-items: center;
+}
+.tbl-row:hover { background: var(--color-hover); }
+.tbl-row.is-selected { background: var(--color-selected); }
+.tbl-row.is-summary { font-weight: 600; background: var(--color-surface-2); }
+.tbl-row.is-summary:hover { background: var(--color-surface-3); }
+.tbl-row__cell {
+  padding: 0 8px;
+  border-right: 1px solid var(--color-grid-line);
+  height: 100%;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tbl-row__cell:last-child { border-right: none; }
+
+/* ── Misc ────────────────────────────────────────────────── */
+.hr-v { width: 1px; background: var(--color-border); align-self: stretch; }
+.muted { color: var(--color-ink-3); }
+.tiny { font-size: var(--fs-xs); }
+.kbd {
+  display: inline-block;
+  padding: 1px 5px;
+  border: 1px solid var(--color-border-2);
+  border-bottom-width: 2px;
+  border-radius: 3px;
+  background: var(--color-surface);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--color-ink-2);
+  line-height: 1.2;
+}
+
+.scroll-host::-webkit-scrollbar { width: 10px; height: 10px; }
+.scroll-host::-webkit-scrollbar-thumb { background: var(--color-border-2); border-radius: 5px; border: 2px solid var(--color-surface); }
+.scroll-host::-webkit-scrollbar-thumb:hover { background: var(--color-border-3); }
+.scroll-host::-webkit-scrollbar-track { background: transparent; }
+
+.assignee-link:hover {
+  background: var(--color-surface-3);
+  border-color: var(--color-border-3);
+}
+
+.export-item:hover {
+  background: var(--color-surface-3);
+}
+
+.bell-row:hover {
+  background: var(--color-hover);
+}
+.user-menu-item:hover {
+  background: var(--color-surface-3);
+}
+
+/* Gantt-Splitter zwischen linker Task-Liste und rechter Timeline.
+   6px breite Hit-Area; die sichtbare 2px-Linie liegt zentriert via ::before.
+   Bei Hover/Active wird die Linie orange. */
+.gantt-splitter {
+  position: relative;
+  flex-shrink: 0;
+  width: 6px;
+  cursor: col-resize;
+  z-index: 5;
+  background: transparent;
+}
+.gantt-splitter::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 2px;
+  transform: translateX(-50%);
+  background: var(--color-border-2);
+  transition: background .12s;
+}
+.gantt-splitter:hover::before,
+.gantt-splitter:active::before {
+  background: var(--color-accent);
+}
+/* Collapsed-State: kein Drag-Cursor, leicht sichtbarere Linie damit
+   man weiss dass dort noch was zum Anklicken ist. */
+.gantt-splitter--collapsed {
+  cursor: default;
+}
+.gantt-splitter--collapsed::before {
+  background: var(--color-border-2);
+}
+.gantt-splitter--collapsed:hover::before {
+  background: var(--color-border-2);
+}
+/* Toggle-Button in der Mitte des Splitters. Sitzt absolut zentriert,
+   ist erst bei Hover voll sichtbar (sonst nur eine angedeutete Andeutung
+   damit die Linie clean bleibt). Bei collapsed permanent voll sichtbar. */
+.gantt-splitter__toggle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 18px;
+  height: 36px;
+  border: 1px solid var(--color-border-2);
+  background: var(--color-surface-2);
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-ink-2);
+  opacity: 0;
+  transition: opacity .12s, background .12s, color .12s, border-color .12s;
+  padding: 0;
+  z-index: 1;
+}
+.gantt-splitter:hover .gantt-splitter__toggle,
+.gantt-splitter__toggle:hover,
+.gantt-splitter__toggle:focus-visible {
+  opacity: 1;
+}
+.gantt-splitter--collapsed .gantt-splitter__toggle {
+  opacity: 1;
+}
+.gantt-splitter__toggle:hover {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: #fff;
+}
+.bell-clear-btn:hover {
+  background: var(--color-surface-3);
+  color: var(--color-ink) !important;
+}
+
+/* ── Responsive ─────────────────────────────────────────────────────
+   Breakpoints:
+   - ≥1200px         : Voll-Layout (Side-by-Side List+Timeline, Ribbon flat)
+   - 900–1199px      : Tab-Switch List/Timeline, Ribbon-Collapse, Header
+                       kompakt, Inspector als Drawer
+   - <900px          : Min-Width-Gate — Hinweis "Bitte größeres Display"
+*/
+
+/* Topbar Search-Trigger (wide-Variant ist default sichtbar als flex-Container).
+   Narrow-Mode hide via @media unten — daher hier keine !important nötig solange
+   keine Inline-display-Properties gesetzt werden. */
+.topbar__search-wide {
+  display: flex;
+}
+.topbar__search-wide:hover {
+  border-color: var(--color-border-3);
+  background: var(--color-surface-2);
+}
+
+/* Min-Width-Gate: zeigt sich nur unter 900px */
+.min-width-gate {
+  display: none;
+}
+@media (max-width: 899px) {
+  .min-width-gate {
+    display: flex;
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    background: var(--color-bg);
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    text-align: center;
+    color: var(--color-ink);
+  }
+  .min-width-gate__icon {
+    font-size: 48px;
+    margin-bottom: 16px;
+  }
+  .min-width-gate__title {
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+  .min-width-gate__msg {
+    color: var(--color-ink-3);
+    font-size: 13px;
+    line-height: 1.6;
+    max-width: 340px;
+  }
+}
+
+/* Narrow-Mode (iPad-Landscape, kleine Laptops): 900–1199px */
+@media (max-width: 1199px) {
+  /* Topbar: Brand-Text, Search-Input, User-Text einsparen */
+  .topbar { gap: 8px; padding: 0 10px; }
+  .topbar__brand .topbar__brand-text { display: none; }
+  .topbar__nav a { padding: 6px 8px; }
+  .topbar__search-wide { display: none; }
+  .topbar__search-icon { display: inline-flex; }
+  .topbar__user-label { display: none; }
+
+  /* Subbar: enger, mit Wrap-Möglichkeit */
+  .subbar { gap: 8px; padding: 0 10px; }
+  .subbar__sync-info { display: none; }
+  /* Buttons mit data-narrow="icon-only" verstecken ihre Text-Labels */
+  .btn-narrow-label { display: none; }
+
+  /* Ribbon kompakter, weniger Padding */
+  .ribbon { padding: 4px 6px 8px; }
+  .ribbon__group { padding: 0 6px; }
+}
+
+/* Wide-Mode (≥1200px): Suche-Icon-Button im Header verstecken */
+@media (min-width: 1200px) {
+  .topbar__search-icon { display: none; }
+}
+
+/* Inspector als Vollbild-Drawer (nur im Narrow-Mode aktiv — auf ≥1200px wird
+   der Inspector als Side-Pane gerendert und diese Klassen werden gar nicht
+   erst benutzt). */
+.inspector-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 40;
+  display: flex;
+  justify-content: flex-end;
+}
+.inspector-drawer {
+  width: min(420px, 100vw);
+  height: 100%;
+  background: var(--color-surface);
+  border-left: 1px solid var(--color-border);
+  box-shadow: var(--shadow-2);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ── Print-Stylesheet (für Export als PDF via Browser-Drucken) ─────── */
+/* Im Bildschirm-Modus ist die Print-View nicht sichtbar (wird aber im DOM
+   gehalten falls printing=true, damit der Drucker sie sehen kann). */
+.gantt-print-mount {
+  display: none;
+}
+
+@media print {
+  /* Alles ausser der Print-View ausblenden — wir drucken eine eigene
+     Komposition, nicht die Live-View. */
+  .topbar,
+  .subbar,
+  .ribbon,
+  .print-hide,
+  aside,
+  details,
+  .gantt-printable,
+  .min-width-gate {
+    display: none !important;
+  }
+
+  html, body, .app {
+    height: auto !important;
+    overflow: visible !important;
+    background: white !important;
+    color: #000 !important;
+  }
+
+  main {
+    padding: 0 !important;
+  }
+
+  /* Print-Mount: einziges sichtbares Element im Print-Output.
+     Die GanttPrintView selbst hat fixe 1550px Breite und skaliert sich via
+     CSS `zoom` so dass es auf die A3-Landscape-Seite passt.
+     `print-color-adjust: exact` erzwingt dass Hintergrundfarben (Bars,
+     Wochenende, Milestone-Diamonds) tatsächlich gedruckt werden — sonst
+     liefert der Browser nur den schwarz/weiss-Modus. */
+  .gantt-print-mount {
+    display: block !important;
+    position: absolute !important;
+    top: 0;
+    left: 0;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+  .gantt-print-mount * {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  /* A3 Querformat mit 5mm Rand. Doppelte Schreibweise (Dimensionen UND
+     landscape-Keyword) erhöht die Wahrscheinlichkeit dass der Browser-Dialog
+     mit korrekter Orientierung startet. */
+  @page {
+    size: 420mm 297mm landscape;
+    margin: 5mm;
+  }
+}
+
+.focus-ring:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--accent-ring);
+  border-color: var(--color-accent);
+}

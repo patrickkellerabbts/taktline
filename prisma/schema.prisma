@@ -1,0 +1,356 @@
+// Prisma schema für die Gantt-Chart Webapp
+// Quelle: REQUIREMENTS.md Sektion 6 + NextAuth/Auth.js v5 Adapter
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Auth.js (NextAuth v5) Standard-Modelle ───────────────────────────────────
+
+model User {
+  id            String    @id @default(uuid())
+  // NextAuth-Standardfelder
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+
+  // Unsere GitLab-Felder (siehe REQUIREMENTS 4.1 / 6)
+  gitlabUserId Int     @unique
+  username     String?
+  avatarUrl    String?
+
+  // Marker für die Bell-Activity: nur AuditLog-Einträge nach diesem Zeitpunkt
+  // werden als "neu" gerendert. Klick auf "Leeren" setzt das auf jetzt.
+  notificationsLastSeenAt DateTime?
+
+  // Persistente UI-Präferenzen (Gantt-Density, Filter-Default, Display-Toggles).
+  // Frei-form JSON damit neue Settings ohne Migration dazukommen können.
+  // URL-Params überschreiben die Werte hier (siehe gantt/page.tsx).
+  preferences Json @default("{}")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  accounts            Account[]
+  sessions            Session[]
+  activatedProjects   Project[]      @relation("ProjectActivatedBy")
+  createdDependencies Dependency[]   @relation("DependencyCreatedBy")
+  auditLogs           AuditLog[]
+  ownedRisks          Risk[]         @relation("RiskOwner")
+  riskHistoryEntries  RiskHistory[]
+}
+
+// Account speichert die OAuth-Tokens. access_token + refresh_token werden vor
+// dem Schreiben verschlüsselt (AES-GCM, siehe FR-A3) — Implementierung im
+// custom-Wrapper des PrismaAdapter (lib/auth).
+model Account {
+  id                       String  @id @default(uuid())
+  userId                   String
+  type                     String
+  provider                 String
+  providerAccountId        String
+  refresh_token            String? @db.Text
+  access_token             String? @db.Text
+  expires_at               Int?
+  token_type               String?
+  scope                    String?
+  id_token                 String? @db.Text
+  session_state            String?
+  refresh_token_expires_in Int?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(uuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ─── Domain-Modelle ───────────────────────────────────────────────────────────
+
+model Project {
+  id                     String    @id @default(uuid())
+  gitlabProjectId        Int       @unique
+  nameCache              String
+  webhookId              Int?
+  webhookSecretEncrypted String?   @db.Text
+  activatedByUserId      String
+  createdAt              DateTime  @default(now())
+  lastFullSyncAt         DateTime?
+
+  activatedBy  User          @relation("ProjectActivatedBy", fields: [activatedByUserId], references: [id])
+  workPackages WorkPackage[]
+  milestones   Milestone[]
+  labels       ProjectLabel[]
+  risks        Risk[]
+}
+
+// Cache aller GitLab-Project-Labels (auch noch keinem Issue zugewiesene).
+// Wird beim Sync gefüllt. Dadurch ist die Label-Palette im Inspector
+// vollständig, nicht nur "Labels die schon irgendwo benutzt wurden".
+model ProjectLabel {
+  id           String   @id @default(uuid())
+  projectId    String
+  name         String
+  color        String?
+  textColor    String?
+  description  String?
+  lastSyncedAt DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, name])
+  @@index([projectId])
+}
+
+model WorkPackage {
+  id              String   @id @default(uuid())
+  projectId       String
+  gitlabIssueIid  Int
+  parentId        String?
+  startDate       DateTime @db.Date
+  endDate         DateTime @db.Date
+  progressPercent Int      @default(0)
+  isSummary       Boolean  @default(false)
+
+  // Baseline (Plan-vs-Ist): eingefrorener Start-/Endzeitpunkt aus einem
+  // früheren Stand. Cache vom gantt-meta:v1-Block (baseline_start / _end).
+  // Null = keine Baseline gesetzt → Bar wird nicht doppelt gerendert.
+  baselineStartDate DateTime? @db.Date
+  baselineEndDate   DateTime? @db.Date
+
+  // Read-Cache aus GitLab
+  titleCache       String
+  descriptionCache String? @db.Text
+  stateCache       String // "opened" | "closed"
+  labelsCache      Json    @default("[]")
+  assigneesCache   Json    @default("[]")
+  // Optionale Referenz auf einen Meilenstein (GitLab Issue.milestone_id).
+  // Wird beim Sync aus issue.milestone aufgelöst → unsere Milestone.id.
+  // SetNull wenn der Meilenstein gelöscht wird (in GitLab kann Issues ihren
+  // Meilenstein verlieren ohne dass das Issue weg ist).
+  milestoneId String?
+
+  lastSyncedAt DateTime  @default(now())
+  deletedAt    DateTime?
+
+  project             Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  milestone           Milestone?           @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
+  parent              WorkPackage?         @relation("WorkPackageHierarchy", fields: [parentId], references: [id])
+  children            WorkPackage[]        @relation("WorkPackageHierarchy")
+  predecessors        Dependency[]         @relation("DependencySuccessor")
+  successors          Dependency[]         @relation("DependencyPredecessor")
+  resourceAllocations ResourceAllocation[]
+  mergeRequests       WorkPackageMr[]
+  risks               RiskWorkPackage[]
+
+  @@unique([projectId, gitlabIssueIid])
+  @@index([parentId])
+  @@index([projectId, deletedAt])
+  @@index([milestoneId])
+}
+
+model Milestone {
+  id                String    @id @default(uuid())
+  projectId         String
+  gitlabMilestoneId Int
+  titleCache        String
+  descriptionCache  String?   @db.Text
+  dueDateCache      DateTime? @db.Date
+  stateCache        String // "active" | "closed"
+  // true wenn der Meilenstein in GitLab auf Group-Ebene definiert ist (nicht
+  // im Projekt selbst). Solche Meilensteine sind in Taktline read-only —
+  // GitLab antwortet auf Edit-/Delete-Versuche über den Project-Endpoint
+  // mit 403.
+  isGroupMilestone  Boolean   @default(false)
+  lastSyncedAt      DateTime  @default(now())
+
+  project      Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  workPackages WorkPackage[]
+  risks        RiskMilestone[]
+
+  @@unique([projectId, gitlabMilestoneId])
+}
+
+enum DependencyType {
+  FS // Finish-to-Start (Standard)
+  SS // Start-to-Start
+  FF // Finish-to-Finish
+  SF // Start-to-Finish
+}
+
+model Dependency {
+  id              String         @id @default(uuid())
+  predecessorId   String
+  successorId     String
+  type            DependencyType @default(FS)
+  lagDays         Int            @default(0)
+  createdAt       DateTime       @default(now())
+  createdByUserId String?
+
+  predecessor WorkPackage @relation("DependencyPredecessor", fields: [predecessorId], references: [id], onDelete: Cascade)
+  successor   WorkPackage @relation("DependencySuccessor", fields: [successorId], references: [id], onDelete: Cascade)
+  createdBy   User?       @relation("DependencyCreatedBy", fields: [createdByUserId], references: [id])
+
+  @@unique([predecessorId, successorId])
+  @@index([successorId])
+}
+
+// Resource-Allokation referenziert GitLab-Numerik-ID, nicht zwingend einen
+// lokalen User (Assignee muss sich nicht in unserer App eingeloggt haben).
+model ResourceAllocation {
+  id                String @id @default(uuid())
+  workPackageId     String
+  gitlabUserId      Int
+  allocationPercent Int    @default(100)
+
+  workPackage WorkPackage @relation(fields: [workPackageId], references: [id], onDelete: Cascade)
+
+  @@unique([workPackageId, gitlabUserId])
+  @@index([gitlabUserId])
+}
+
+// Cache der mit einem WP verlinkten Merge Requests + jüngste Pipeline.
+// Wird beim Sync gefüllt (lifecycle delete-and-recreate pro WP) und vom
+// Inspector direkt ohne GitLab-Roundtrip gelesen.
+model WorkPackageMr {
+  id              String   @id @default(uuid())
+  workPackageId   String
+  mrIid           Int
+  title           String
+  state           String // "opened" | "closed" | "merged" | "locked"
+  sourceBranch    String?
+  targetBranch    String?
+  webUrl          String
+  pipelineId      Int?
+  pipelineStatus  String? // "success" | "failed" | "running" | ...
+  pipelineWebUrl  String?
+  authorName      String?
+  authorAvatarUrl String?
+  lastSyncedAt    DateTime @default(now())
+
+  workPackage WorkPackage @relation(fields: [workPackageId], references: [id], onDelete: Cascade)
+
+  @@unique([workPackageId, mrIid])
+  @@index([workPackageId])
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String?
+  action     String
+  entityType String
+  entityId   String
+  before     Json?
+  after      Json?
+  createdAt  DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([entityType, entityId])
+  @@index([userId, createdAt])
+}
+
+// ─── Risiken ──────────────────────────────────────────────────────────────────
+// Risiken werden ausschliesslich in unserer DB gehalten — kein Sync nach
+// GitLab. Pre/Post-Mitigation: jedes Risk hat einen Initial-Score (vor
+// Mitigation) und optional einen Score nach Mitigations-Massnahmen. Beide
+// werden in der Matrix als zwei verbundene Punkte gerendert.
+
+model Risk {
+  id          String  @id @default(uuid())
+  projectId   String
+  title       String
+  description String? @db.Text
+  category    String?
+
+  // Pre-Mitigation: Initial-Bewertung. Beide Werte 1-5.
+  probabilityPre Int
+  impactPre      Int
+
+  // Post-Mitigation: optional. Wenn null, ist (noch) keine Mitigation erfolgt.
+  probabilityPost Int?
+  impactPost      Int?
+
+  // identified | in_progress | mitigated | accepted | occurred | closed
+  status String @default("identified")
+
+  mitigationPlan  String? @db.Text
+  contingencyPlan String? @db.Text
+
+  ownerUserId String?
+
+  identifiedAt DateTime  @default(now())
+  nextReviewAt DateTime?
+  closedAt     DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project   Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  owner     User?            @relation("RiskOwner", fields: [ownerUserId], references: [id])
+  linkedWps RiskWorkPackage[]
+  linkedMs  RiskMilestone[]
+  history   RiskHistory[]
+
+  @@index([projectId])
+  @@index([status])
+}
+
+model RiskWorkPackage {
+  riskId        String
+  workPackageId String
+
+  risk        Risk        @relation(fields: [riskId], references: [id], onDelete: Cascade)
+  workPackage WorkPackage @relation(fields: [workPackageId], references: [id], onDelete: Cascade)
+
+  @@id([riskId, workPackageId])
+  @@index([workPackageId])
+}
+
+model RiskMilestone {
+  riskId      String
+  milestoneId String
+
+  risk      Risk      @relation(fields: [riskId], references: [id], onDelete: Cascade)
+  milestone Milestone @relation(fields: [milestoneId], references: [id], onDelete: Cascade)
+
+  @@id([riskId, milestoneId])
+  @@index([milestoneId])
+}
+
+// Audit-Log pro Risiko-Änderung. Ein Eintrag pro geändertem Feld.
+model RiskHistory {
+  id       String  @id @default(uuid())
+  riskId   String
+  userId   String?
+  field    String
+  oldValue String?
+  newValue String?
+
+  createdAt DateTime @default(now())
+
+  risk Risk  @relation(fields: [riskId], references: [id], onDelete: Cascade)
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([riskId, createdAt])
+}
