@@ -5,6 +5,7 @@ import { TaktMark } from '@/components/brand/TaktMark';
 import { SearchLauncher } from '@/components/header/SearchLauncher';
 import { BellMenu } from '@/components/header/BellMenu';
 import { UserMenu } from '@/components/header/UserMenu';
+import { isDemoMode } from '@/lib/demo/mode';
 
 type Props = {
   username?: string | null;
@@ -23,6 +24,27 @@ export function AppHeader({ username, active = 'projects' }: Props) {
           TAKTLINE
         </span>
       </Link>
+
+      {isDemoMode() && (
+        <span
+          data-demo-chip=""
+          title="Öffentliche Demo mit Beispieldaten. Kein GitLab angebunden — Änderungen werden regelmässig zurückgesetzt."
+          style={{
+            alignSelf: 'center',
+            padding: '2px 7px',
+            borderRadius: 'var(--r-2)',
+            border: '1px solid var(--color-accent)',
+            color: 'var(--color-accent-h)',
+            background: 'var(--color-accent-soft)',
+            fontSize: 10,
+            fontWeight: 700,
+            letterSpacing: '0.06em',
+            cursor: 'default',
+          }}
+        >
+          DEMO
+        </span>
+      )}
 
       <div className="hr-v" style={{ height: 22, alignSelf: 'center' }} />
 

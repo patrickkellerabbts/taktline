@@ -199,6 +199,19 @@ Der Seed ist bewusst destruktiv: er leert die Demo-DB vor jedem Lauf und
 setzt ein festes Bezugsdatum, damit wiederholte Läufe identische Bilder
 liefern.
 
+### Als öffentliche Demo betreiben
+
+Mit `DEMO_MODE=true` läuft die App ganz ohne GitLab: ein lokaler Stub
+beantwortet die API-Aufrufe, der Login wird übersprungen und die
+Beispieldaten setzen sich periodisch zurück. Alle Schreibpfade — Drag-and-Drop,
+Inspector, neue Aufgaben, Kommentare — funktionieren dabei normal.
+
+Deployment, Reverse-Proxy und Betrieb: [`DEMO.md`](./DEMO.md).
+
+```bash
+npm run demo:dev   # lokal, mit DEMO_MODE=true
+```
+
 ---
 
 ## Projekt-Struktur

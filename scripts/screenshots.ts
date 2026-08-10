@@ -9,7 +9,7 @@
  */
 import { chromium, type Page } from 'playwright';
 import { mkdir } from 'node:fs/promises';
-import { DEMO_SESSION_TOKEN, DEMO_PROJECT_ID } from './demo-constants';
+import { DEMO_SESSION_TOKEN, DEMO_PROJECT_ID } from '../src/lib/demo/constants';
 
 const BASE_URL = process.env.DEMO_BASE_URL ?? 'http://localhost:3043';
 const OUT_DIR = 'docs/screenshots';
@@ -105,8 +105,11 @@ async function main() {
     }
 
     // Das Dev-Overlay von Next (Logo-Badge unten links) gehört nicht in die
-    // Doku-Bilder.
-    await page.addStyleTag({ content: 'nextjs-portal { display: none !important; }' });
+    // Doku-Bilder — der DEMO-Chip im Header ebenso wenig: die Bilder zeigen
+    // die App, nicht den Betriebsmodus, in dem sie aufgenommen wurde.
+    await page.addStyleTag({
+      content: 'nextjs-portal, [data-demo-chip] { display: none !important; }',
+    });
 
     await shot.prepare?.(page);
     // Kurz durchatmen: der Gantt misst seine Container erst nach dem Mount

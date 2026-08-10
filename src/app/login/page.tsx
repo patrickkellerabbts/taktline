@@ -1,8 +1,10 @@
 import { redirect } from 'next/navigation';
-import { Lock, AlertTriangle } from 'lucide-react';
+import { Lock, AlertTriangle, PlayCircle } from 'lucide-react';
 import { auth, signIn } from '@/auth';
 import { TaktMark } from '@/components/brand/TaktMark';
 import { GitlabMark } from '@/components/brand/GitlabMark';
+import { isDemoMode } from '@/lib/demo/mode';
+import { DEMO_USER_NAME } from '@/lib/demo/seed';
 
 type Props = {
   searchParams: Promise<{ expired?: string }>;
@@ -15,6 +17,7 @@ export default async function LoginPage({ searchParams }: Props) {
   }
   const { expired } = await searchParams;
   const showExpired = expired === '1';
+  const demo = isDemoMode();
   // GitLab-Host für den Footer aus GITLAB_URL extrahieren. Fallback "GitLab"
   // falls die URL nicht parsebar ist oder gar nicht gesetzt.
   const gitlabHost = (() => {
@@ -103,21 +106,49 @@ export default async function LoginPage({ searchParams }: Props) {
               </span>
             </div>
           )}
-          <form
-            action={async () => {
-              'use server';
-              await signIn('gitlab', { redirectTo: '/projects' });
-            }}
-          >
-            <button
-              type="submit"
-              className="btn btn--primary btn--lg"
-              style={{ justifyContent: 'center', width: '100%' }}
+          {demo ? (
+            <>
+              <div
+                style={{
+                  fontSize: 12,
+                  lineHeight: 1.5,
+                  color: 'var(--color-ink-3)',
+                  textAlign: 'center',
+                  marginBottom: 2,
+                }}
+              >
+                Öffentliche Demo mit erfundenen Beispieldaten. Kein GitLab
+                angebunden — Änderungen bleiben lokal und werden regelmässig
+                zurückgesetzt.
+              </div>
+              <form action="/api/demo/login" method="post">
+                <button
+                  type="submit"
+                  className="btn btn--primary btn--lg"
+                  style={{ justifyContent: 'center', width: '100%' }}
+                >
+                  <PlayCircle size={16} />
+                  <span style={{ marginLeft: 4 }}>Demo starten</span>
+                </button>
+              </form>
+            </>
+          ) : (
+            <form
+              action={async () => {
+                'use server';
+                await signIn('gitlab', { redirectTo: '/projects' });
+              }}
             >
-              <GitlabMark size={16} />
-              <span style={{ marginLeft: 4 }}>Mit GitLab anmelden</span>
-            </button>
-          </form>
+              <button
+                type="submit"
+                className="btn btn--primary btn--lg"
+                style={{ justifyContent: 'center', width: '100%' }}
+              >
+                <GitlabMark size={16} />
+                <span style={{ marginLeft: 4 }}>Mit GitLab anmelden</span>
+              </button>
+            </form>
+          )}
         </div>
 
         <div
@@ -134,10 +165,10 @@ export default async function LoginPage({ searchParams }: Props) {
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <Lock size={11} />
-            <span>SSO-Sitzung 7 Tage gültig</span>
+            <span>{demo ? `Angemeldet als ${DEMO_USER_NAME}` : 'SSO-Sitzung 7 Tage gültig'}</span>
           </div>
           <span style={{ color: 'var(--color-accent-h)', fontWeight: 500 }}>
-            {gitlabHost}
+            {demo ? 'Demo' : gitlabHost}
           </span>
         </div>
       </div>

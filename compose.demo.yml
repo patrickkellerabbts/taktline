@@ -1,0 +1,73 @@
+# Öffentliche Demo-Instanz — Taktline ohne GitLab-Gegenstelle.
+#
+# Unterschiede zu compose.prod.yml:
+#   - DEMO_MODE=true: GitLab-Aufrufe beantwortet ein lokaler Stub, der Login
+#     läuft über /api/demo/login statt über OAuth
+#   - keine GitLab-Zugangsdaten nötig
+#   - kein Reconciliation-Job (es gibt nichts zu reconcilen), stattdessen
+#     setzt der Container die Beispieldaten periodisch zurück
+#
+# Start:
+#   cp .env.demo.example .env.demo && $EDITOR .env.demo
+#   docker compose -f compose.demo.yml --env-file .env.demo up -d --build
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: taktline-demo-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-taktline}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env.demo}
+      POSTGRES_DB: ${POSTGRES_DB:-taktline_demo}
+    volumes:
+      - taktline-demo-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-taktline} -d ${POSTGRES_DB:-taktline_demo}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        BUILD_SHA: ${BUILD_SHA:-unknown}
+    image: taktline:demo
+    container_name: taktline-demo-app
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-taktline}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-taktline_demo}?schema=public"
+
+      # Öffentliche URL. Bestimmt unter anderem, ob der Session-Cookie mit
+      # __Secure--Präfix gesetzt wird — muss zum tatsächlichen Schema passen,
+      # sonst bleibt der Demo-Login wirkungslos.
+      AUTH_URL: ${AUTH_URL:?Set AUTH_URL to the public URL}
+      AUTH_SECRET: ${AUTH_SECRET:?Set AUTH_SECRET (openssl rand -base64 32)}
+
+      # ── Demo-Betrieb ──
+      DEMO_MODE: "true"
+      # Minuten zwischen zwei Resets der Beispieldaten. 0 = nie zurücksetzen.
+      DEMO_RESET_INTERVAL_MINUTES: ${DEMO_RESET_INTERVAL_MINUTES:-60}
+
+      # Wird im Demo-Modus nicht benutzt (es werden keine OAuth-Tokens
+      # gespeichert), muss aber formal gültig sein, falls doch ein
+      # Verschlüsselungspfad angefasst wird.
+      TOKEN_ENCRYPTION_KEY: ${TOKEN_ENCRYPTION_KEY:?Set TOKEN_ENCRYPTION_KEY (openssl rand -base64 32)}
+
+      # Kein GitLab: der Job hätte keine Gegenstelle.
+      RECONCILIATION_ENABLED: "false"
+
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      NODE_ENV: production
+    ports:
+      # Standardmässig nur auf Localhost — davor gehört ein Reverse-Proxy mit
+      # TLS (siehe DEMO.md). Für einen Test ohne Proxy: "0.0.0.0:3043:3043".
+      - "127.0.0.1:${APP_PORT:-3043}:3043"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  taktline-demo-postgres-data:

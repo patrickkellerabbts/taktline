@@ -14,6 +14,14 @@ export async function register() {
   if (g.__taktline_recon_started) return;
   g.__taktline_recon_started = true;
 
+  // Demo-Modus: es gibt keine GitLab-Gegenstelle, gegen die reconciled werden
+  // könnte. Stattdessen läuft der periodische Reset der Beispieldaten.
+  const { isDemoMode } = await import('./lib/demo/mode');
+  if (isDemoMode()) {
+    await startDemoReset();
+    return;
+  }
+
   const enabled = (process.env.RECONCILIATION_ENABLED ?? 'true').toLowerCase() === 'true';
   const intervalMinutes = Number(process.env.RECONCILIATION_INTERVAL_MINUTES ?? 15);
 
@@ -59,5 +67,49 @@ export async function register() {
         'Reconciliation: unerwarteter Fehler im Scheduler',
       );
     }
+  }
+}
+
+/**
+ * Demo-Betrieb: alle Besucher teilen sich einen Datenstand. Damit die Demo
+ * nicht dauerhaft verbastelt bleibt, wird sie periodisch neu aufgesetzt.
+ *
+ * Beim Start wird immer einmal geseedet — so ist ein frisch hochgefahrener
+ * Container ohne manuellen Schritt benutzbar, und ein leeres Volume genügt.
+ */
+async function startDemoReset() {
+  const { demoResetIntervalMinutes } = await import('./lib/demo/mode');
+  const { seedDemoData } = await import('./lib/demo/seed');
+  const { resetDemoNotes } = await import('./lib/gitlab/demo-client');
+  const { prisma } = await import('./lib/db');
+  const { logger } = await import('./lib/logger');
+
+  const minutes = demoResetIntervalMinutes();
+
+  async function reseed(reason: string) {
+    try {
+      const r = await seedDemoData(prisma);
+      // Die Kommentare liegen prozesslokal, nicht in der DB — separat zurücksetzen.
+      const project = await prisma.project.findUnique({
+        where: { id: r.projectId },
+        select: { gitlabProjectId: true },
+      });
+      if (project) resetDemoNotes(project.gitlabProjectId);
+      logger.info({ reason, ...r }, 'Demo: Daten zurückgesetzt');
+    } catch (err) {
+      logger.error(
+        { err: err instanceof Error ? err.message : String(err) },
+        'Demo: Reset fehlgeschlagen',
+      );
+    }
+  }
+
+  await reseed('startup');
+
+  if (minutes > 0) {
+    logger.info({ intervalMinutes: minutes }, 'Demo: Auto-Reset aktiviert');
+    setInterval(() => void reseed('interval'), minutes * 60_000);
+  } else {
+    logger.info('Demo: Auto-Reset deaktiviert (DEMO_RESET_INTERVAL_MINUTES <= 0)');
   }
 }

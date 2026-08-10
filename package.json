@@ -22,7 +22,7 @@
     "demo:reset": "docker exec gantt-postgres psql -U gantt -d gantt -c 'DROP DATABASE IF EXISTS taktline_demo' -c 'CREATE DATABASE taktline_demo OWNER gantt' && npm run demo:migrate",
     "demo:migrate": "DATABASE_URL=$npm_package_config_demoDb prisma migrate deploy",
     "demo:seed": "DATABASE_URL=$npm_package_config_demoDb tsx scripts/seed-demo.ts",
-    "demo:dev": "DATABASE_URL=$npm_package_config_demoDb next dev -p 3043",
+    "demo:dev": "DATABASE_URL=$npm_package_config_demoDb DEMO_MODE=true DEMO_RESET_INTERVAL_MINUTES=0 next dev -p 3043",
     "demo:screenshots": "tsx scripts/screenshots.ts",
     "prod:build": "BUILD_SHA=$(git rev-parse --short HEAD 2>/dev/null || echo unknown) docker compose -f compose.prod.yml build",
     "prod:up": "BUILD_SHA=$(git rev-parse --short HEAD 2>/dev/null || echo unknown) docker compose -f compose.prod.yml up -d --build",

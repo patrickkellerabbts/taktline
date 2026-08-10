@@ -1,358 +1,39 @@
 /**
- * Seed für die Demo-Datenbank.
+ * CLI-Wrapper um den Demo-Seed für die lokale Entwicklung.
  *
- * Legt ein vollständig erfundenes Beispiel-Projekt an ("Website-Relaunch 2026")
- * inklusive Hierarchie, Dependencies, Meilensteinen, Auslastung und Risiken —
- * genug Substanz, damit Gantt, Ressourcen-Heatmap, Berichte und Risikomatrix
- * auf Screenshots etwas zu zeigen haben.
+ * Die eigentliche Logik liegt in src/lib/demo/seed.ts, damit auch der
+ * Demo-Server sie aufrufen kann (dort gibt es kein tsx und kein scripts/).
  *
- * Alle Namen, Titel und Daten sind frei erfunden. Das Script schreibt NICHT in
- * die Dev-Datenbank, sondern in die über DATABASE_URL übergebene Demo-DB
- * (siehe `npm run demo:seed`), und legt vorher alles darin an Demo-Daten an.
- *
- * Zusätzlich wird eine Session mit festem Token angelegt (DEMO_SESSION_TOKEN),
- * damit der Screenshot-Runner ohne GitLab-OAuth eingeloggt ist.
+ * Aufruf: npm run demo:seed
  */
-import { PrismaClient, type DependencyType } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
-import { DEMO_SESSION_TOKEN, DEMO_PROJECT_ID } from './demo-constants';
+import { seedDemoData, DEMO_USER_NAME } from '../src/lib/demo/seed';
+import { DEMO_SESSION_TOKEN } from '../src/lib/demo/constants';
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) throw new Error('DATABASE_URL ist nicht gesetzt');
+
+// Schutz vor Fehlgriffen: der Seed leert alle Tabellen. Ohne diesen Check
+// wäre ein vergessenes DATABASE_URL-Prefix genug, um die Dev-DB zu leeren.
+if (!/taktline_demo|demo/i.test(connectionString) && process.env.DEMO_SEED_FORCE !== '1') {
+  throw new Error(
+    `DATABASE_URL zeigt nicht auf eine Demo-Datenbank ("${connectionString.replace(/:[^:@]*@/, ':***@')}").\n` +
+      'Der Seed leert alle Tabellen — Abbruch. Mit DEMO_SEED_FORCE=1 überstimmbar.',
+  );
+}
+
 const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
-
-// Fixes Bezugsdatum statt new Date(): so sehen wiederholte Läufe (und damit
-// auch die Screenshots) immer gleich aus. "Heute" liegt bewusst mitten im
-// Projekt, damit die Today-Linie im Gantt sichtbar ist.
-const TODAY = new Date('2026-08-09T00:00:00Z');
-
-function d(iso: string): Date {
-  return new Date(`${iso}T00:00:00Z`);
-}
-
-// ─── Personen (frei erfunden) ────────────────────────────────────────
-
-const PEOPLE = [
-  { gitlabUserId: 101, username: 'a.berger', name: 'Anna Berger', email: 'a.berger@example.com' },
-  { gitlabUserId: 102, username: 't.fischer', name: 'Tom Fischer', email: 't.fischer@example.com' },
-  { gitlabUserId: 103, username: 'l.wagner', name: 'Lena Wagner', email: 'l.wagner@example.com' },
-  { gitlabUserId: 104, username: 'm.huber', name: 'Max Huber', email: 'm.huber@example.com' },
-  { gitlabUserId: 105, username: 's.kern', name: 'Sarah Kern', email: 's.kern@example.com' },
-];
-
-function assignee(gitlabUserId: number) {
-  const p = PEOPLE.find((x) => x.gitlabUserId === gitlabUserId)!;
-  return { id: p.gitlabUserId, username: p.username, name: p.name };
-}
-
-// ─── Labels ──────────────────────────────────────────────────────────
-
-const LABELS = [
-  { name: 'frontend', color: '#3b82f6' },
-  { name: 'backend', color: '#8b5cf6' },
-  { name: 'design', color: '#ec4899' },
-  { name: 'infra', color: '#0ea5e9' },
-  { name: 'content', color: '#f59e0b' },
-  { name: 'qs', color: '#10b981' },
-  { name: 'blockiert', color: '#ef4444' },
-];
-
-// ─── Work Packages ───────────────────────────────────────────────────
-// `key` ist nur scriptintern (für Parent-/Dependency-Referenzen), in der DB
-// steht die gitlabIssueIid.
-
-type WpSeed = {
-  key: string;
-  iid: number;
-  title: string;
-  start: string;
-  end: string;
-  progress: number;
-  state?: 'opened' | 'closed';
-  parent?: string;
-  summary?: boolean;
-  labels?: string[];
-  assignees?: number[];
-  allocations?: { gitlabUserId: number; percent: number }[];
-  baseline?: [string, string];
-  milestone?: string;
-};
-
-const WPS: WpSeed[] = [
-  // ── Phase 1: Analyse & Konzept ──
-  { key: 'p1', iid: 1, title: 'Analyse & Konzept', start: '2026-06-01', end: '2026-06-26', progress: 100, state: 'closed', summary: true },
-  { key: 'p1a', iid: 2, title: 'Ist-Analyse bestehende Website', start: '2026-06-01', end: '2026-06-09', progress: 100, state: 'closed', parent: 'p1', labels: ['content'], assignees: [101], allocations: [{ gitlabUserId: 101, percent: 60 }], milestone: 'm1' },
-  { key: 'p1b', iid: 3, title: 'Stakeholder-Interviews führen', start: '2026-06-03', end: '2026-06-12', progress: 100, state: 'closed', parent: 'p1', assignees: [103], allocations: [{ gitlabUserId: 103, percent: 40 }], milestone: 'm1' },
-  { key: 'p1c', iid: 4, title: 'Informationsarchitektur festlegen', start: '2026-06-15', end: '2026-06-19', progress: 100, state: 'closed', parent: 'p1', labels: ['design'], assignees: [103], allocations: [{ gitlabUserId: 103, percent: 80 }], milestone: 'm1' },
-  { key: 'p1d', iid: 5, title: 'Anforderungskatalog abstimmen', start: '2026-06-22', end: '2026-06-26', progress: 100, state: 'closed', parent: 'p1', assignees: [101], allocations: [{ gitlabUserId: 101, percent: 50 }], milestone: 'm1' },
-
-  // ── Phase 2: Design ──
-  { key: 'p2', iid: 10, title: 'Design & Prototyping', start: '2026-06-29', end: '2026-08-07', progress: 85, summary: true },
-  { key: 'p2a', iid: 11, title: 'Moodboard & Farbkonzept', start: '2026-06-29', end: '2026-07-07', progress: 100, state: 'closed', parent: 'p2', labels: ['design'], assignees: [103], allocations: [{ gitlabUserId: 103, percent: 100 }], milestone: 'm2' },
-  { key: 'p2b', iid: 12, title: 'Wireframes Startseite + Unterseiten', start: '2026-07-08', end: '2026-07-20', progress: 100, state: 'closed', parent: 'p2', labels: ['design'], assignees: [103], allocations: [{ gitlabUserId: 103, percent: 80 }], milestone: 'm2' },
-  { key: 'p2c', iid: 13, title: 'Design-System / Komponenten-Bibliothek', start: '2026-07-13', end: '2026-08-04', progress: 90, parent: 'p2', labels: ['design', 'frontend'], assignees: [103, 102], allocations: [{ gitlabUserId: 103, percent: 60 }, { gitlabUserId: 102, percent: 40 }], baseline: ['2026-07-13', '2026-07-29'], milestone: 'm2' },
-  { key: 'p2d', iid: 14, title: 'Klickbarer Prototyp für Review', start: '2026-07-27', end: '2026-08-07', progress: 60, parent: 'p2', labels: ['design'], assignees: [103], allocations: [{ gitlabUserId: 103, percent: 50 }], milestone: 'm2' },
-
-  // ── Phase 3: Implementierung ──
-  { key: 'p3', iid: 20, title: 'Implementierung', start: '2026-07-20', end: '2026-10-16', progress: 35, summary: true },
-  { key: 'p3a', iid: 21, title: 'Projekt-Setup + CI-Pipeline', start: '2026-07-20', end: '2026-07-29', progress: 100, state: 'closed', parent: 'p3', labels: ['infra'], assignees: [104], allocations: [{ gitlabUserId: 104, percent: 70 }] },
-  { key: 'p3b', iid: 22, title: 'CMS-Anbindung + Content-Modell', start: '2026-07-30', end: '2026-08-21', progress: 65, parent: 'p3', labels: ['backend'], assignees: [102], allocations: [{ gitlabUserId: 102, percent: 80 }], milestone: 'm3' },
-  { key: 'p3c', iid: 23, title: 'Startseite umsetzen', start: '2026-08-05', end: '2026-08-28', progress: 40, parent: 'p3', labels: ['frontend'], assignees: [102, 105], allocations: [{ gitlabUserId: 102, percent: 60 }, { gitlabUserId: 105, percent: 60 }], milestone: 'm3' },
-  { key: 'p3d', iid: 24, title: 'Produktseiten + Filterlogik', start: '2026-08-24', end: '2026-09-18', progress: 10, parent: 'p3', labels: ['frontend', 'backend'], assignees: [105], allocations: [{ gitlabUserId: 105, percent: 100 }], milestone: 'm3' },
-  { key: 'p3e', iid: 25, title: 'Suchfunktion mit Autocomplete', start: '2026-09-07', end: '2026-09-25', progress: 0, parent: 'p3', labels: ['backend'], assignees: [102], allocations: [{ gitlabUserId: 102, percent: 70 }] },
-  { key: 'p3f', iid: 26, title: 'Kontaktformular + Spam-Schutz', start: '2026-09-14', end: '2026-09-25', progress: 0, parent: 'p3', labels: ['frontend'], assignees: [105], allocations: [{ gitlabUserId: 105, percent: 50 }] },
-  { key: 'p3g', iid: 27, title: 'Redaktions-Workflow einrichten', start: '2026-09-21', end: '2026-10-09', progress: 0, parent: 'p3', labels: ['content'], assignees: [101], allocations: [{ gitlabUserId: 101, percent: 60 }] },
-  { key: 'p3h', iid: 28, title: 'Mehrsprachigkeit (DE/FR/EN)', start: '2026-09-28', end: '2026-10-16', progress: 0, parent: 'p3', labels: ['backend', 'content'], assignees: [102, 101], allocations: [{ gitlabUserId: 102, percent: 50 }, { gitlabUserId: 101, percent: 50 }] },
-
-  // ── Phase 4: Test & Rollout ──
-  { key: 'p4', iid: 30, title: 'Test & Rollout', start: '2026-09-28', end: '2026-11-20', progress: 0, summary: true },
-  { key: 'p4a', iid: 31, title: 'Barrierefreiheit prüfen (WCAG 2.2 AA)', start: '2026-09-28', end: '2026-10-14', progress: 0, parent: 'p4', labels: ['qs'], assignees: [104], allocations: [{ gitlabUserId: 104, percent: 60 }], milestone: 'm4' },
-  { key: 'p4b', iid: 32, title: 'Performance-Budget verifizieren', start: '2026-10-05', end: '2026-10-16', progress: 0, parent: 'p4', labels: ['qs', 'infra'], assignees: [104], allocations: [{ gitlabUserId: 104, percent: 50 }], milestone: 'm4' },
-  { key: 'p4c', iid: 33, title: 'Inhalte migrieren + redaktionell prüfen', start: '2026-10-12', end: '2026-11-06', progress: 0, parent: 'p4', labels: ['content'], assignees: [101, 103], allocations: [{ gitlabUserId: 101, percent: 80 }, { gitlabUserId: 103, percent: 40 }], milestone: 'm4' },
-  { key: 'p4d', iid: 34, title: 'Redirect-Konzept alte URLs', start: '2026-10-19', end: '2026-10-30', progress: 0, parent: 'p4', labels: ['infra'], assignees: [104], allocations: [{ gitlabUserId: 104, percent: 40 }] },
-  { key: 'p4e', iid: 35, title: 'Abnahme-Testlauf mit Fachbereich', start: '2026-11-02', end: '2026-11-13', progress: 0, parent: 'p4', labels: ['qs'], assignees: [105, 101], allocations: [{ gitlabUserId: 105, percent: 60 }, { gitlabUserId: 101, percent: 60 }], milestone: 'm5' },
-  { key: 'p4f', iid: 36, title: 'Go-Live + Monitoring scharf schalten', start: '2026-11-16', end: '2026-11-20', progress: 0, parent: 'p4', labels: ['infra'], assignees: [104, 102], allocations: [{ gitlabUserId: 104, percent: 100 }, { gitlabUserId: 102, percent: 50 }], milestone: 'm5' },
-];
-
-// ─── Meilensteine ────────────────────────────────────────────────────
-
-const MILESTONES = [
-  { key: 'm1', iid: 1, title: 'Konzept freigegeben', due: '2026-06-26', state: 'closed' },
-  { key: 'm2', iid: 2, title: 'Design abgenommen', due: '2026-08-07', state: 'active' },
-  { key: 'm3', iid: 3, title: 'Feature-Complete', due: '2026-09-18', state: 'active' },
-  { key: 'm4', iid: 4, title: 'QS abgeschlossen', due: '2026-11-06', state: 'active' },
-  { key: 'm5', iid: 5, title: 'Go-Live', due: '2026-11-20', state: 'active' },
-];
-
-// ─── Dependencies ────────────────────────────────────────────────────
-// Zwei davon sind bewusst nicht erfüllbar (p3h→p4c und p4c→p4e): der
-// Nachfolger startet vor dem Ende des Vorgängers. Dadurch zeigt der Gantt
-// die Konflikt-Markierung, statt dass das Feature auf den Bildern unsichtbar
-// bleibt. Alle übrigen Verknüpfungen sind konsistent.
-
-const DEPS: { from: string; to: string; type?: DependencyType; lag?: number }[] = [
-  { from: 'p1a', to: 'p1c' },
-  { from: 'p1b', to: 'p1c' },
-  { from: 'p1c', to: 'p1d' },
-  { from: 'p1d', to: 'p2a' },
-  { from: 'p2a', to: 'p2b' },
-  { from: 'p2b', to: 'p2c', type: 'SS', lag: 5 },
-  { from: 'p2c', to: 'p2d', type: 'SS', lag: 10 },
-  { from: 'p3a', to: 'p3b' },
-  { from: 'p2c', to: 'p3c' },
-  { from: 'p3b', to: 'p3d', type: 'SS', lag: 18 },
-  { from: 'p3c', to: 'p3d', type: 'SS', lag: 19 },
-  { from: 'p3d', to: 'p3e', type: 'SS', lag: 12 },
-  { from: 'p3d', to: 'p3f', type: 'SS', lag: 15 },
-  { from: 'p3e', to: 'p3g', type: 'SS', lag: 14 },
-  { from: 'p3g', to: 'p3h', type: 'SS', lag: 5 },
-  { from: 'p3d', to: 'p4a' },
-  { from: 'p4a', to: 'p4b', type: 'SS', lag: 5 },
-  { from: 'p3h', to: 'p4c', type: 'FS', lag: -3 },
-  { from: 'p4b', to: 'p4d' },
-  { from: 'p4c', to: 'p4e' },
-  { from: 'p4e', to: 'p4f' },
-];
-
-// ─── Risiken ─────────────────────────────────────────────────────────
-
-const RISKS = [
-  { title: 'Inhalte werden nicht rechtzeitig geliefert', category: 'Organisation', pre: [4, 4], post: [2, 4], status: 'in_progress', owner: 101, wps: ['p4c'], ms: ['m4'], mitigation: 'Redaktionsplan mit verbindlichen Zwischenterminen; Platzhalter-Inhalte für den Testlauf akzeptieren.', contingency: 'Go-Live mit reduziertem Seitenumfang, Rest per Nachlieferung.' },
-  { title: 'CMS-Migration verliert Metadaten', category: 'Technik', pre: [3, 5], post: [2, 3], status: 'mitigated', owner: 102, wps: ['p3b', 'p4c'], mitigation: 'Migrationsskript mit Dry-Run und Feldabgleich gegen Referenzexport.', contingency: 'Rollback auf Altsystem, Nachpflege der betroffenen Felder von Hand.' },
-  { title: 'Performance-Budget auf Mobilgeräten verfehlt', category: 'Technik', pre: [3, 3], post: [2, 2], status: 'in_progress', owner: 104, wps: ['p4b'], mitigation: 'Bildpipeline mit AVIF, Lighthouse-Check als CI-Gate.' },
-  { title: 'Schlüsselperson fällt in der Rollout-Phase aus', category: 'Ressourcen', pre: [2, 5], post: [2, 3], status: 'identified', owner: 101, wps: ['p4f'], ms: ['m5'], mitigation: 'Vier-Augen-Prinzip beim Deployment, Runbook dokumentieren.' },
-  { title: 'Barrierefreiheits-Audit deckt Nacharbeit auf', category: 'Qualität', pre: [4, 3], post: [3, 2], status: 'in_progress', owner: 104, wps: ['p4a'], mitigation: 'Frühe Zwischenprüfung schon während der Komponentenentwicklung.' },
-  { title: 'Rechtliche Freigabe der Datenschutzerklärung verzögert', category: 'Recht', pre: [3, 2], post: null, status: 'identified', owner: 103, ms: ['m5'] },
-  { title: 'Alte URLs verlieren Suchmaschinen-Ranking', category: 'Marketing', pre: [3, 4], post: [1, 4], status: 'mitigated', owner: 104, wps: ['p4d'], mitigation: '301-Weiterleitungen für alle Bestands-URLs, Sitemap frühzeitig einreichen.' },
-  { title: 'Mehrsprachigkeit sprengt den Zeitplan', category: 'Umfang', pre: [4, 3], post: [3, 3], status: 'identified', owner: 102, wps: ['p3h'], mitigation: 'FR/EN als Phase 2 nach Go-Live einplanen, DE zuerst vollständig.' },
-  { title: 'Suchfunktion liefert unbrauchbare Treffer', category: 'Technik', pre: [2, 3], post: [1, 3], status: 'accepted', owner: 102, wps: ['p3e'] },
-  { title: 'Abnahme durch Fachbereich verzögert sich', category: 'Organisation', pre: [3, 4], post: [2, 3], status: 'in_progress', owner: 101, wps: ['p4e'], ms: ['m5'], mitigation: 'Teilabnahmen pro Modul statt einer Gesamtabnahme am Ende.' },
-  { title: 'Drittanbieter-Skripte brechen Cookie-Banner', category: 'Recht', pre: [2, 2], post: null, status: 'closed', owner: 105 },
-];
 
 async function main() {
   console.log('→ Demo-Daten werden geschrieben …');
-
-  // Alles Bestehende wegräumen: das Script ist bewusst destruktiv, es läuft
-  // ausschliesslich gegen die separate Demo-DB.
-  await prisma.riskHistory.deleteMany();
-  await prisma.riskWorkPackage.deleteMany();
-  await prisma.riskMilestone.deleteMany();
-  await prisma.risk.deleteMany();
-  await prisma.dependency.deleteMany();
-  await prisma.resourceAllocation.deleteMany();
-  await prisma.workPackageMr.deleteMany();
-  await prisma.workPackage.deleteMany();
-  await prisma.milestone.deleteMany();
-  await prisma.projectLabel.deleteMany();
-  await prisma.project.deleteMany();
-  await prisma.auditLog.deleteMany();
-  await prisma.session.deleteMany();
-  await prisma.account.deleteMany();
-  await prisma.user.deleteMany();
-
-  // Personen anlegen. Die erste ist gleichzeitig die eingeloggte Demo-Nutzerin.
-  const users = new Map<number, string>();
-  for (const p of PEOPLE) {
-    const u = await prisma.user.create({
-      data: {
-        name: p.name,
-        email: p.email,
-        gitlabUserId: p.gitlabUserId,
-        username: p.username,
-        preferences: {},
-      },
-    });
-    users.set(p.gitlabUserId, u.id);
-  }
-  const demoUserId = users.get(PEOPLE[0].gitlabUserId)!;
-
-  // Session mit festem Token — der Screenshot-Runner setzt genau diesen Wert
-  // als Cookie und ist damit ohne OAuth-Flow eingeloggt.
-  await prisma.session.create({
-    data: {
-      sessionToken: DEMO_SESSION_TOKEN,
-      userId: demoUserId,
-      expires: new Date(TODAY.getTime() + 365 * 24 * 60 * 60 * 1000),
-    },
-  });
-
-  const project = await prisma.project.create({
-    data: {
-      id: DEMO_PROJECT_ID,
-      gitlabProjectId: 4242,
-      nameCache: 'beispiel/website-relaunch',
-      activatedByUserId: demoUserId,
-      lastFullSyncAt: new Date(TODAY.getTime() - 4 * 60 * 1000),
-      labels: { create: LABELS.map((l) => ({ name: l.name, color: l.color, textColor: '#ffffff' })) },
-    },
-  });
-
-  const msIds = new Map<string, string>();
-  for (const m of MILESTONES) {
-    const created = await prisma.milestone.create({
-      data: {
-        projectId: project.id,
-        gitlabMilestoneId: m.iid,
-        titleCache: m.title,
-        dueDateCache: d(m.due),
-        stateCache: m.state,
-      },
-    });
-    msIds.set(m.key, created.id);
-  }
-
-  // Zwei Durchgänge: erst alle WPs anlegen, dann Parent-Verweise setzen —
-  // sonst müsste die Reihenfolge in WPS der Hierarchie folgen.
-  const wpIds = new Map<string, string>();
-  for (const w of WPS) {
-    const created = await prisma.workPackage.create({
-      data: {
-        projectId: project.id,
-        gitlabIssueIid: w.iid,
-        titleCache: w.title,
-        stateCache: w.state ?? 'opened',
-        startDate: d(w.start),
-        endDate: d(w.end),
-        progressPercent: w.progress,
-        isSummary: w.summary ?? false,
-        milestoneId: w.milestone ? msIds.get(w.milestone) : null,
-        baselineStartDate: w.baseline ? d(w.baseline[0]) : null,
-        baselineEndDate: w.baseline ? d(w.baseline[1]) : null,
-        labelsCache: (w.labels ?? []).map((n) => {
-          const l = LABELS.find((x) => x.name === n)!;
-          return { name: l.name, color: l.color };
-        }),
-        assigneesCache: (w.assignees ?? []).map(assignee),
-        resourceAllocations: {
-          create: (w.allocations ?? []).map((a) => ({
-            gitlabUserId: a.gitlabUserId,
-            allocationPercent: a.percent,
-          })),
-        },
-      },
-    });
-    wpIds.set(w.key, created.id);
-  }
-  for (const w of WPS) {
-    if (!w.parent) continue;
-    await prisma.workPackage.update({
-      where: { id: wpIds.get(w.key)! },
-      data: { parentId: wpIds.get(w.parent)! },
-    });
-  }
-
-  for (const dep of DEPS) {
-    await prisma.dependency.create({
-      data: {
-        predecessorId: wpIds.get(dep.from)!,
-        successorId: wpIds.get(dep.to)!,
-        type: dep.type ?? 'FS',
-        lagDays: dep.lag ?? 0,
-        createdByUserId: demoUserId,
-      },
-    });
-  }
-
-  for (const r of RISKS) {
-    await prisma.risk.create({
-      data: {
-        projectId: project.id,
-        title: r.title,
-        category: r.category,
-        probabilityPre: r.pre[0],
-        impactPre: r.pre[1],
-        probabilityPost: r.post ? r.post[0] : null,
-        impactPost: r.post ? r.post[1] : null,
-        status: r.status,
-        mitigationPlan: r.mitigation ?? null,
-        contingencyPlan: r.contingency ?? null,
-        ownerUserId: r.owner ? users.get(r.owner) : null,
-        linkedWps: { create: (r.wps ?? []).map((k) => ({ workPackageId: wpIds.get(k)! })) },
-        linkedMs: { create: (r.ms ?? []).map((k) => ({ milestoneId: msIds.get(k)! })) },
-      },
-    });
-  }
-
-  // AuditLog-Einträge: der Velocity-Chart im Bericht leitet "erstellt" und
-  // "geschlossen" pro Kalenderwoche daraus ab. Ohne diese Historie bliebe das
-  // Diagramm leer. Anlage-Zeitpunkt ist jeweils gut zwei Wochen vor dem
-  // geplanten Start, das Schliessen fällt auf das Enddatum.
-  const auditRows: {
-    userId: string;
-    action: string;
-    entityType: string;
-    entityId: string;
-    after: object;
-    createdAt: Date;
-  }[] = [];
-  for (const w of WPS) {
-    const id = wpIds.get(w.key)!;
-    const createdAt = new Date(d(w.start).getTime() - 16 * 24 * 60 * 60 * 1000);
-    auditRows.push({
-      userId: demoUserId,
-      action: 'work_package.create',
-      entityType: 'WorkPackage',
-      entityId: id,
-      after: { title: w.title },
-      createdAt,
-    });
-    if (w.state === 'closed') {
-      auditRows.push({
-        userId: demoUserId,
-        action: 'work_package.update',
-        entityType: 'WorkPackage',
-        entityId: id,
-        after: { state: 'closed' },
-        createdAt: d(w.end),
-      });
-    }
-  }
-  await prisma.auditLog.createMany({ data: auditRows });
-
-  console.log(`✓ Projekt "${project.nameCache}" (${project.id})`);
-  console.log(`  ${WPS.length} Work Packages, ${MILESTONES.length} Meilensteine, ${DEPS.length} Dependencies, ${RISKS.length} Risiken`);
-  console.log(`✓ Login als ${PEOPLE[0].name} — Session-Token: ${DEMO_SESSION_TOKEN}`);
+  const r = await seedDemoData(prisma);
+  console.log(`✓ Projekt ${r.projectId}`);
+  console.log(
+    `  ${r.workPackages} Work Packages, ${r.milestones} Meilensteine, ` +
+      `${r.dependencies} Dependencies, ${r.risks} Risiken`,
+  );
+  console.log(`✓ Login als ${DEMO_USER_NAME} — Session-Token: ${DEMO_SESSION_TOKEN}`);
 }
 
 main()
