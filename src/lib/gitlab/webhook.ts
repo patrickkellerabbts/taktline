@@ -42,6 +42,7 @@ export type GitlabIssuePayload = {
     due_date: string | null;
     created_at?: string;
     updated_at: string;
+    closed_at?: string | null;
     milestone_id?: number | null;
   };
   /** Top-level Labels mit Farben (besser als object_attributes.labels) */

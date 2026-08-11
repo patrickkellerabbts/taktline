@@ -59,7 +59,10 @@ export async function refreshWorkPackageMrsAction(
   } catch (err) {
     if (err instanceof GitlabTokenExpiredError) return sessionExpiredResult();
     logger.warn({ err: String(err) }, 'refreshWorkPackageMrsAction fehlgeschlagen');
-    return { ok: false, error: 'GitLab-API-Fehler beim Aktualisieren' };
+    // Bewusst ohne Ursachenbehauptung: hier landet auch, was gar nicht von
+    // GitLab kommt (DB, Serialisierung). Ein "GitLab-API-Fehler" schickt die
+    // Fehlersuche dann in die falsche Richtung — Details stehen im Log.
+    return { ok: false, error: 'Aktualisieren fehlgeschlagen' };
   }
 }
 

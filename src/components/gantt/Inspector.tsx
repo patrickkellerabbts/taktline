@@ -1558,6 +1558,9 @@ function MergeRequestRow({ mr }: { mr: GanttMergeRequest }) {
       >
         {mr.title}
       </span>
+      {/* Zustand ausgeschrieben: das kleine Icon links allein geht neben einem
+          roten Pipeline-Badge unter, und „merged" ist die wichtigere Aussage. */}
+      <span style={{ fontSize: 10, color: stateColor, flexShrink: 0 }}>{mr.state}</span>
       {mr.pipeline && <PipelineBadge pipeline={mr.pipeline} />}
       <ExternalLink size={10} style={{ color: 'var(--color-ink-4)', flexShrink: 0 }} />
     </a>
@@ -1589,7 +1592,7 @@ function PipelineBadge({ pipeline }: { pipeline: NonNullable<GanttMergeRequest['
           window.open(pipeline.webUrl, '_blank', 'noopener,noreferrer');
         }
       }}
-      title={`Pipeline: ${info.label}`}
+      title={`Pipeline #${pipeline.id}: ${info.label}`}
       style={{
         display: 'inline-flex',
         alignItems: 'center',

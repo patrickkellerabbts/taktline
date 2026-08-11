@@ -28,6 +28,10 @@ function d(iso: string): Date {
   return new Date(`${iso}T00:00:00Z`);
 }
 
+function addDays(base: Date, days: number): Date {
+  return new Date(base.getTime() + days * 86_400_000);
+}
+
 // ─── Personen (frei erfunden) ────────────────────────────────────────
 
 const PEOPLE = [
@@ -264,6 +268,11 @@ export async function seedDemoData(prisma: PrismaClient): Promise<SeedResult> {
         stateCache: w.state ?? 'opened',
         startDate: d(w.start),
         endDate: d(w.end),
+        // Geschlossene Pakete landen nicht exakt auf ihrem Plantermin — sonst
+        // lägen Ist- und Plan-Linie im Burndown deckungsgleich übereinander
+        // und die Demo zeigte eine Aussage, die kein Projekt je macht. Der
+        // Versatz ist aus der IID abgeleitet, also über Resets hinweg stabil.
+        closedAt: w.state === 'closed' ? addDays(d(w.end), (w.iid % 5) - 1) : null,
         progressPercent: w.progress,
         isSummary: w.summary ?? false,
         milestoneId: w.milestone ? msIds.get(w.milestone) : null,

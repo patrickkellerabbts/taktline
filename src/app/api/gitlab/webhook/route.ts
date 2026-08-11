@@ -116,6 +116,7 @@ async function handleIssueEvent(
             state: attrs.state,
             dueDate: attrs.due_date,
             createdAt: attrs.created_at ?? null,
+            closedAt: attrs.closed_at ?? null,
             labels: payload.labels,
             assignees: payload.assignees,
             milestoneId: attrs.milestone_id ?? null,

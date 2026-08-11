@@ -142,6 +142,11 @@ model WorkPackage {
   titleCache       String
   descriptionCache String? @db.Text
   stateCache       String // "opened" | "closed"
+  // Zeitpunkt aus GitLab (issue.closed_at), nicht der Moment, in dem der Sync
+  // die Schliessung bemerkt hat. Nur damit lässt sich rückwirkend sagen, wie
+  // der Bestand an offenen Paketen über die Zeit verlief — der Burndown in
+  // /reports liest das. Null bei offenen Paketen.
+  closedAt         DateTime?
   labelsCache      Json    @default("[]")
   assigneesCache   Json    @default("[]")
   // Optionale Referenz auf einen Meilenstein (GitLab Issue.milestone_id).
@@ -241,7 +246,14 @@ model WorkPackageMr {
   sourceBranch    String?
   targetBranch    String?
   webUrl          String
+  // Commit, mit dem der MR auf dem Zielbranch gelandet ist (bei Squash-Merges
+  // der squash_commit_sha). Nur bei state = "merged" gesetzt. Daraus holt der
+  // Sync die Pipeline, die nach dem Merge lief — siehe pipelineStatus.
+  mergeCommitSha  String?
   pipelineId      Int?
+  // Bei gemergten MRs die Pipeline des Merge-Commits auf dem Zielbranch,
+  // sonst die letzte Pipeline des MR selbst. Ein gemergter MR, dessen
+  // Branch-Pipeline rot war, zeigt damit das Ergebnis, das tatsächlich zählt.
   pipelineStatus  String? // "success" | "failed" | "running" | ...
   pipelineWebUrl  String?
   authorName      String?

@@ -216,6 +216,11 @@ export async function performInitialSync(
         ? new Date(meta.baseline_end)
         : null;
 
+    // GitLab liefert closed_at nur bei geschlossenen Issues; beim Wiedereröffnen
+    // räumt es das Feld selbst ab. Wir spiegeln das 1:1, damit ein reopen die
+    // alte Schliessung nicht als Geist im Burndown zurücklässt.
+    const closedAt = issue.closed_at ? new Date(issue.closed_at as string) : null;
+
     // Milestone-Referenz aus dem GitLab-Issue auflösen → lokale Milestone.id
     const issueMilestone = (issue as { milestone?: { id?: number } | null }).milestone;
     const milestoneLocalId =
@@ -239,6 +244,7 @@ export async function performInitialSync(
         titleCache: issue.title,
         descriptionCache: (issue.description as string | null) ?? null,
         stateCache: issue.state,
+        closedAt,
         labelsCache: extractLabels(issue.labels),
         assigneesCache: extractAssignees(issue.assignees),
         milestoneId: milestoneLocalId,
@@ -252,6 +258,7 @@ export async function performInitialSync(
         titleCache: issue.title,
         descriptionCache: (issue.description as string | null) ?? null,
         stateCache: issue.state,
+        closedAt,
         labelsCache: extractLabels(issue.labels),
         assigneesCache: extractAssignees(issue.assignees),
         milestoneId: milestoneLocalId,
@@ -455,6 +462,9 @@ export type IssueUpdate = {
   state: 'opened' | 'closed';
   dueDate: string | null;
   createdAt: string | null;
+  /** issue.closed_at aus GitLab. Fehlt es im Payload, springt der Zeitpunkt
+   *  des Events ein — der Webhook trifft beim Schliessen ein. */
+  closedAt: string | null;
   labels: unknown;
   assignees: unknown;
   // GitLab-Milestone-ID falls dem Issue ein Meilenstein zugeordnet ist
@@ -487,6 +497,11 @@ export async function applyIssueUpdate(
 
   const labelsCache = extractLabels(issue.labels);
   const assigneesCache = extractAssignees(issue.assignees);
+
+  // Siehe performInitialSync: offen ⇒ null, damit ein reopen die frühere
+  // Schliessung nicht stehen lässt.
+  const closedAt =
+    issue.state === 'closed' ? new Date(issue.closedAt ?? Date.now()) : null;
 
   // Vorherigen State holen damit wir state-Transitions im AuditLog tracken
   // können (Velocity in /reports zählt darüber Closing-Events).
@@ -533,18 +548,21 @@ export async function applyIssueUpdate(
       titleCache: issue.title,
       descriptionCache: issue.description,
       stateCache: issue.state,
+      closedAt,
       labelsCache,
       assigneesCache,
       milestoneId: milestoneLocalId,
     },
     update: {
-      // Bei state-only Events (close/reopen) nicht alles überschreiben
+      // Bei state-only Events (close/reopen) nicht alles überschreiben —
+      // closedAt gehört aber dazu, das IST hier die Nachricht.
       ...(action === 'state-only'
-        ? { stateCache: issue.state, lastSyncedAt: new Date() }
+        ? { stateCache: issue.state, closedAt, lastSyncedAt: new Date() }
         : {
             titleCache: issue.title,
             descriptionCache: issue.description,
             stateCache: issue.state,
+            closedAt,
             endDate,
             startDate,
             baselineStartDate,
@@ -677,6 +695,67 @@ function extractLabels(labels: unknown): LabelCache[] {
     .filter((x): x is LabelCache => x !== null);
 }
 
+// ── Pipeline-Auflösung für einen MR ────────────────────────────────────
+
+type PipelineInfo = { id: number; status: string; webUrl: string | null };
+
+/**
+ * Pipeline zu einem Commit auf dem Zielbranch.
+ *
+ * Für gemergte MRs ist das die Antwort auf die Frage, die man beim Blick auf
+ * die Zeile eigentlich stellt: ist der Stand, der auf dem Zielbranch gelandet
+ * ist, grün? Die Pipelines des MR selbst laufen auf dem Source-Branch und
+ * können rot sein, obwohl der Merge danach sauber durchlief — genau der Fall,
+ * bei dem die Anzeige vorher „failed" neben einem gemergten MR zeigte.
+ *
+ * Null wenn es zu dem Commit keine Pipeline gibt (Repos ohne CI, oder der
+ * Merge-Commit hat schlicht keine ausgelöst) — dann greift der Fallback auf
+ * die MR-Pipeline.
+ */
+async function pipelineForCommit(
+  client: GitlabClient,
+  gitlabProjectId: number,
+  sha: string,
+): Promise<PipelineInfo | null> {
+  try {
+    const pipelines = (await client.Pipelines.all(gitlabProjectId, {
+      sha,
+      perPage: 1,
+    })) as Array<Record<string, unknown>>;
+    if (pipelines.length === 0) return null;
+    return {
+      id: pipelines[0].id as number,
+      status: pipelines[0].status as string,
+      webUrl: (pipelines[0].web_url as string) ?? null,
+    };
+  } catch (err) {
+    logger.warn({ err: String(err), sha }, 'pipeline-fetch für Merge-Commit fehlgeschlagen');
+    return null;
+  }
+}
+
+/** Letzte Pipeline des MR selbst (Source-Branch). */
+async function lastPipelineOfMr(
+  client: GitlabClient,
+  gitlabProjectId: number,
+  mrIid: number,
+): Promise<PipelineInfo | null> {
+  try {
+    const pipelines = (await client.MergeRequests.allPipelines(gitlabProjectId, mrIid, {
+      perPage: 1,
+    })) as Array<Record<string, unknown>>;
+    if (pipelines.length === 0) return null;
+    return {
+      id: pipelines[0].id as number,
+      status: pipelines[0].status as string,
+      webUrl: (pipelines[0].web_url as string) ?? null,
+    };
+  } catch {
+    // soft-fail — die MR-Zeile ist auch ohne Pipeline-Badge brauchbar
+    return null;
+  }
+}
+
 // ── MR/Pipeline-Sync für einen einzelnen WP ────────────────────────────
 // Eigenständige Funktion OHNE TX-Param damit sie ausserhalb von langlaufenden
 // Transactions verwendet werden kann (Initial-Sync, Webhook). Macht die
@@ -702,35 +781,33 @@ export async function syncWorkPackageMergeRequests(
   const records = await Promise.all(
     mrsRaw.map(async (mr) => {
       const mrIid = mr.iid as number;
-      let pipelineId: number | null = null;
-      let pipelineStatus: string | null = null;
-      let pipelineWebUrl: string | null = null;
-      try {
-        const pipelines = (await client.MergeRequests.allPipelines(
-          gitlabProjectId,
-          mrIid,
-          { perPage: 1 },
-        )) as Array<Record<string, unknown>>;
-        if (pipelines.length > 0) {
-          pipelineId = pipelines[0].id as number;
-          pipelineStatus = pipelines[0].status as string;
-          pipelineWebUrl = (pipelines[0].web_url as string) ?? null;
-        }
-      } catch {
-        // soft-fail
-      }
+      const state = (mr.state as string) ?? 'opened';
+      // Bei Squash-Merges ist merge_commit_sha leer und der Stand landet unter
+      // squash_commit_sha auf dem Zielbranch.
+      const mergeCommitSha =
+        state === 'merged'
+          ? ((mr.merge_commit_sha as string | null) ??
+            (mr.squash_commit_sha as string | null) ??
+            null)
+          : null;
+
+      const pipeline =
+        (mergeCommitSha ? await pipelineForCommit(client, gitlabProjectId, mergeCommitSha) : null) ??
+        (await lastPipelineOfMr(client, gitlabProjectId, mrIid));
+
       const author = mr.author as Record<string, unknown> | null;
       return {
         workPackageId,
         mrIid,
         title: (mr.title as string) ?? '',
-        state: (mr.state as string) ?? 'opened',
+        state,
         sourceBranch: (mr.source_branch as string | null) ?? null,
         targetBranch: (mr.target_branch as string | null) ?? null,
         webUrl: (mr.web_url as string) ?? '',
-        pipelineId,
-        pipelineStatus,
-        pipelineWebUrl,
+        mergeCommitSha,
+        pipelineId: pipeline?.id ?? null,
+        pipelineStatus: pipeline?.status ?? null,
+        pipelineWebUrl: pipeline?.webUrl ?? null,
         authorName: author ? ((author.name as string) ?? null) : null,
         authorAvatarUrl: author ? ((author.avatar_url as string | null) ?? null) : null,
       };
