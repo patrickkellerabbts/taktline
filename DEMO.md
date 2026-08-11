@@ -4,6 +4,8 @@ Taktline lässt sich ohne GitLab-Gegenstelle betreiben — als öffentlich
 erreichbare Demo, in der man alles anfassen kann: Balken verschieben, Termine
 und Fortschritt ändern, Aufgaben und Meilensteine anlegen, kommentieren.
 
+Die laufende Instanz: <https://taktlinedemo.da2o.xyz/>
+
 Eingeschaltet wird das über eine einzige Variable:
 
 ```env

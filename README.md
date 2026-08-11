@@ -4,6 +4,8 @@ Projektmanagement-Tool als Bridge zwischen GitLab CE und vollwertiger PM-Softwar
 
 > **Status:** Single-Tenant Internal-Tool, im produktiven Einsatz. Hier öffentlich als Portfolio-/Beispiel-Repo. Vollständige Anforderungen siehe [`REQUIREMENTS.md`](./REQUIREMENTS.md), Design-Vorgaben in [`DESIGN_BRIEF.md`](./DESIGN_BRIEF.md), Architektur-Notizen in [`ARCHITECTURE.md`](./ARCHITECTURE.md).
 
+**→ Live-Demo: [taktlinedemo.da2o.xyz](https://taktlinedemo.da2o.xyz/)** — ohne Anmeldung, alles anfassbar. Balken verschieben, Termine und Fortschritt ändern, Aufgaben und Risiken anlegen, kommentieren. Alle Besucher teilen sich einen Datenstand, der sich stündlich auf die Beispieldaten zurücksetzt.
+
 ![Gantt-Ansicht mit Hierarchie, Dependency-Pfeilen und Inspector](docs/screenshots/gantt-overview.png)
 
 <details>
@@ -200,6 +202,8 @@ setzt ein festes Bezugsdatum, damit wiederholte Läufe identische Bilder
 liefern.
 
 ### Als öffentliche Demo betreiben
+
+Läuft unter **[taktlinedemo.da2o.xyz](https://taktlinedemo.da2o.xyz/)**.
 
 Mit `DEMO_MODE=true` läuft die App ganz ohne GitLab: ein lokaler Stub
 beantwortet die API-Aufrufe, der Login wird übersprungen und die
