@@ -8,6 +8,7 @@ import { performInitialSync, syncAllWorkPackageMergeRequests } from '@/lib/gitla
 import { logger } from '@/lib/logger';
 import { GitlabTokenExpiredError } from '@/lib/auth/encrypted-adapter';
 import { syncSummaryLabels } from '@/lib/gitlab/summary-label';
+import { isDemoMode } from '@/lib/demo/mode';
 
 export type ResyncResult =
   | {
@@ -32,6 +33,12 @@ export async function resyncProjectAction(projectId: string): Promise<ResyncResu
     select: { id: true, gitlabProjectId: true },
   });
   if (!project) return { ok: false, error: 'Projekt nicht gefunden' };
+
+  // Im Demo-Modus gibt es keine Gegenstelle, aus der sich etwas nachladen
+  // liesse — ein echter Sync würde die Daten leerräumen. Stattdessen setzt
+  // der Knopf auf den Beispieldatensatz zurück, was in einer Demo ohnehin
+  // das ist, was man von "neu laden" erwartet.
+  if (isDemoMode()) return resyncDemoProject(project.gitlabProjectId);
 
   try {
     // getGitlabClientForUser kann GitlabTokenExpiredError werfen wenn der
@@ -119,5 +126,49 @@ export async function resyncProjectAction(projectId: string): Promise<ResyncResu
       ok: false,
       error: err instanceof Error ? err.message : 'Re-Sync fehlgeschlagen',
     };
+  }
+}
+
+/**
+ * Demo-Variante des Re-Syncs: schreibt den Beispieldatensatz neu.
+ *
+ * Dieselbe Operation, die auch der Auto-Reset im Startup-Hook fährt
+ * (src/instrumentation.ts) — nur eben auf Knopfdruck. Die Projekt-ID ist im
+ * Seed fest vergeben, die aktuelle URL bleibt also gültig; die Demo-Session
+ * wird mit demselben Token neu angelegt, der Tab bleibt eingeloggt.
+ *
+ * Kein AuditLog-Eintrag: der Seed leert die Tabelle ohnehin gleich wieder,
+ * und die alte userId existiert nach dem Reset nicht mehr.
+ */
+async function resyncDemoProject(gitlabProjectId: number): Promise<ResyncResult> {
+  // Dynamisch, damit der Seed-Datensatz nicht in jedem Server-Bundle landet.
+  const { seedDemoData } = await import('@/lib/demo/seed');
+  const { resetDemoNotes } = await import('@/lib/gitlab/demo-client');
+
+  try {
+    const result = await seedDemoData(prisma);
+    // Kommentare liegen prozesslokal, nicht in der DB — separat zurücksetzen.
+    resetDemoNotes(gitlabProjectId);
+    logger.info({ reason: 'resync-button', ...result }, 'Demo: Daten zurückgesetzt');
+
+    // Der Reset betrifft jede Ansicht, nicht nur das Gantt — deshalb der
+    // Layout-weite Revalidate statt einzelner Pfade.
+    revalidatePath('/', 'layout');
+
+    return {
+      ok: true,
+      counts: {
+        workPackages: result.workPackages,
+        milestones: result.milestones,
+        parentLinks: 0,
+        dependencies: result.dependencies,
+      },
+    };
+  } catch (err) {
+    logger.error(
+      { err: err instanceof Error ? err.message : String(err) },
+      'Demo: Reset über Sync-Knopf fehlgeschlagen',
+    );
+    return { ok: false, error: 'Demo-Daten konnten nicht zurückgesetzt werden' };
   }
 }

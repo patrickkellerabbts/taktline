@@ -17,6 +17,7 @@ import {
 } from '@/components/gantt/GanttView';
 import { computeSummaries } from '@/lib/gantt/summary';
 import { ResyncButton } from '../ResyncButton';
+import { isDemoMode } from '@/lib/demo/mode';
 
 type Props = {
   params: Promise<{ id: string }>;
@@ -239,7 +240,7 @@ export default async function GanttPage({ params, searchParams }: Props) {
                 'Noch nicht synchronisiert'
               )}
             </span>
-            <ResyncButton projectId={project.id} />
+            <ResyncButton projectId={project.id} demo={isDemoMode()} />
             <BaselineMenu projectId={project.id} />
             <ExportButton projectId={project.id} />
             <NewMilestoneButton projectId={project.id} />

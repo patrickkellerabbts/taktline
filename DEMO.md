@@ -45,6 +45,13 @@ Container ist damit ohne manuellen Schritt benutzbar, ein leeres Volume
 genügt. Der Reset legt die Demo-Session mit demselben Token neu an —
 geöffnete Browser-Tabs bleiben also eingeloggt.
 
+**Synchronisieren.** Der Knopf in der Gantt-Leiste heisst im Demo-Modus
+„Demo zurücksetzen" und schreibt den Beispieldatensatz neu, statt gegen GitLab
+zu syncen. Ein echter Sync würde die Daten leerräumen: der Stub liefert bei
+`Issues.all()` eine leere Liste, und `performInitialSync` zieht daraus den
+richtigen Schluss. Der Knopf macht damit dasselbe wie der Auto-Reset, nur auf
+Zuruf — praktisch, um eine verbastelte Demo sofort wieder geradezuziehen.
+
 **Reconciliation** ist aus, es gäbe nichts zu reconcilen.
 
 ---
@@ -167,4 +174,4 @@ Dann [http://localhost:3043](http://localhost:3043) öffnen → „Demo starten"
 
 Im Dev-Modus ist der Auto-Reset abgeschaltet (`DEMO_RESET_INTERVAL_MINUTES=0`),
 damit Änderungen beim Entwickeln nicht unter den Händen verschwinden. Manuell
-zurücksetzen: `npm run demo:seed`.
+zurücksetzen: „Demo zurücksetzen" in der Gantt-Leiste oder `npm run demo:seed`.

@@ -7,9 +7,11 @@ import { resyncProjectAction } from './actions';
 
 type Props = {
   projectId: string;
+  /** Demo-Modus: der Knopf setzt die Beispieldaten zurück statt zu syncen. */
+  demo?: boolean;
 };
 
-export function ResyncButton({ projectId }: Props) {
+export function ResyncButton({ projectId, demo = false }: Props) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
@@ -39,11 +41,21 @@ export function ResyncButton({ projectId }: Props) {
         onClick={onClick}
         disabled={pending}
         className="btn btn--sm"
-        title="Aktuelle Issues und Meilensteine aus GitLab neu laden"
+        title={
+          demo
+            ? 'Beispieldaten neu laden — alle Änderungen gehen dabei verloren'
+            : 'Aktuelle Issues und Meilensteine aus GitLab neu laden'
+        }
       >
         <RefreshCw size={12} className={pending ? 'animate-spin' : undefined} />
         <span className="btn-narrow-label">
-          {pending ? 'Synchronisiere…' : 'Synchronisieren'}
+          {demo
+            ? pending
+              ? 'Setze zurück…'
+              : 'Demo zurücksetzen'
+            : pending
+              ? 'Synchronisiere…'
+              : 'Synchronisieren'}
         </span>
       </button>
       {error && (
