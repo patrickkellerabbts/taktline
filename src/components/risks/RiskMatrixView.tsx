@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useTransition } from 'react';
+import { useId, useState, useMemo, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   DndContext,
@@ -169,6 +169,19 @@ export function RiskMatrixView({
     return map;
   }, [effectiveRisks, mode]);
 
+  // Bereits im Projekt vergebene Kategorien — Vorschlagsliste für die beiden
+  // Eingabefelder. Ohne sie entstehen "Technik" und "Technisch" nebeneinander,
+  // ohne dass es jemand merkt. Bewusst kein fester Katalog: neue Kategorien
+  // sollen weiterhin einfach eingetippt werden können.
+  const knownCategories = useMemo(() => {
+    const seen = new Map<string, string>(); // kleingeschrieben → Originalschreibweise
+    for (const r of risks) {
+      const c = r.category?.trim();
+      if (c && !seen.has(c.toLowerCase())) seen.set(c.toLowerCase(), c);
+    }
+    return [...seen.values()].sort((a, b) => a.localeCompare(b, 'de'));
+  }, [risks]);
+
   const selectedRisk = selectedRiskId
     ? effectiveRisks.find((r) => r.id === selectedRiskId) ?? null
     : null;
@@ -278,6 +291,7 @@ export function RiskMatrixView({
             workPackages={workPackages}
             milestones={milestones}
             allOwners={allOwners}
+            knownCategories={knownCategories}
             onClose={() => setSelectedRiskId(null)}
           />
         )}
@@ -287,6 +301,7 @@ export function RiskMatrixView({
       {showNewModal && (
         <NewRiskModal
           projectId={projectId}
+          knownCategories={knownCategories}
           onClose={() => setShowNewModal(false)}
           onCreated={(id) => {
             setShowNewModal(false);
@@ -346,8 +361,15 @@ function Matrix({
         flex: 1,
         minHeight: 0,
         display: 'grid',
-        gridTemplateColumns: '120px repeat(5, 1fr)',
-        gridTemplateRows: 'auto repeat(5, 1fr)',
+        // minmax(0, 1fr) statt 1fr: das implizite Minimum von 1fr ist
+        // min-content, und ein langer Risikotitel (nowrap) macht daraus eine
+        // Spalte, die breiter ist als das Fenster. Zusammen mit dem
+        // overflow: hidden weiter unten wurde der Text dann abgeschnitten,
+        // statt in der Karte zu kürzen.
+        // Erste Spalte 150px: "Wahrscheinlichkeit" ist bei 10px in Versalien
+        // rund 120px breit und wurde in einer 120px-Spalte vorne abgeschnitten.
+        gridTemplateColumns: '150px repeat(5, minmax(0, 1fr))',
+        gridTemplateRows: 'auto repeat(5, minmax(0, 1fr))',
         gap: 2,
         background: 'var(--color-border)',
         border: '1px solid var(--color-border)',
@@ -363,14 +385,21 @@ function Matrix({
           fontSize: 10,
           fontWeight: 600,
           textTransform: 'uppercase',
-          letterSpacing: '0.05em',
+          // Weniger Sperrung als die übrigen Überschriften (0.05em): damit
+          // passt "↓ Wahrscheinlichkeit" in eine Zeile statt umzubrechen.
+          letterSpacing: '0.02em',
           color: 'var(--color-ink-3)',
           display: 'flex',
           alignItems: 'flex-end',
           justifyContent: 'flex-end',
+          textAlign: 'right',
+          lineHeight: 1.35,
+          whiteSpace: 'nowrap',
         }}
       >
-        ↓ Wahrscheinlichkeit / Impact →
+        ↓ Wahrscheinlichkeit
+        <br />
+        Impact →
       </div>
 
       {/* X-Achse: Impact-Labels oben */}
@@ -492,6 +521,9 @@ function MatrixCell({
         flexDirection: 'column',
         gap: 4,
         minHeight: 80,
+        // minWidth: 0 lässt die Zelle unter die Breite ihres Inhalts schrumpfen —
+        // erst dadurch greift das Ellipsis in der Karte.
+        minWidth: 0,
         overflow: 'auto',
         transition: 'background .15s',
       }}
@@ -563,6 +595,7 @@ function RiskCard({
         display: 'flex',
         flexDirection: 'column',
         gap: 4,
+        minWidth: 0,
         boxShadow: dragging ? 'var(--shadow-2)' : undefined,
       }}
     >
@@ -571,6 +604,7 @@ function RiskCard({
           fontSize: 11,
           fontWeight: 600,
           color: 'var(--color-ink)',
+          minWidth: 0,
           overflow: 'hidden',
           textOverflow: 'ellipsis',
           whiteSpace: 'nowrap',
@@ -687,16 +721,71 @@ function LegendBox({ color, label }: { color: string; label: string }) {
   );
 }
 
+// ─── Kategorie-Eingabe ──────────────────────────────────────────────
+
+/**
+ * Freitextfeld mit Vorschlägen aus den bereits vergebenen Kategorien.
+ *
+ * Bewusst ein `<datalist>` und kein `<select>`: die Kategorien sind kein
+ * gepflegter Katalog, eine neue soll man weiterhin einfach tippen können. Die
+ * Liste ist eine Gedächtnisstütze gegen Dubletten, keine Einschränkung.
+ */
+export function CategoryInput({
+  value,
+  onChange,
+  onCommit,
+  suggestions,
+  disabled,
+}: {
+  value?: string;
+  onChange?: (next: string) => void;
+  /** Für unkontrollierte Nutzung (Inspector): Wert bei Blur übernehmen. */
+  onCommit?: (next: string) => void;
+  suggestions: string[];
+  disabled?: boolean;
+}) {
+  // Eine ID pro Instanz — zwei datalists mit gleichem id-Attribut würden sich
+  // im DOM gegenseitig verdecken.
+  const listId = useId();
+  return (
+    <>
+      <input
+        className="input"
+        type="text"
+        list={listId}
+        defaultValue={onChange ? undefined : value}
+        value={onChange ? value ?? '' : undefined}
+        onChange={onChange ? (e) => onChange(e.target.value) : undefined}
+        onBlur={onCommit ? (e) => onCommit(e.target.value) : undefined}
+        disabled={disabled}
+        placeholder={
+          suggestions.length > 0
+            ? `z.B. ${suggestions.slice(0, 2).join(', ')} …`
+            : 'z.B. Technisch, Finanziell, Personal …'
+        }
+        style={{ width: '100%', fontSize: 12 }}
+      />
+      <datalist id={listId}>
+        {suggestions.map((c) => (
+          <option key={c} value={c} />
+        ))}
+      </datalist>
+    </>
+  );
+}
+
 // ─── New-Risk-Modal ─────────────────────────────────────────────────
 
 function NewRiskModal({
   projectId,
   onClose,
   onCreated,
+  knownCategories,
 }: {
   projectId: string;
   onClose: () => void;
   onCreated: (riskId: string) => void;
+  knownCategories: string[];
 }) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -812,14 +901,11 @@ function NewRiskModal({
         </div>
         <div>
           <div className="label">Kategorie</div>
-          <input
-            className="input"
-            type="text"
+          <CategoryInput
             value={category}
-            onChange={(e) => setCategory(e.target.value)}
+            onChange={setCategory}
             disabled={pending}
-            placeholder="z.B. Technisch, Finanziell, Personal …"
-            style={{ width: '100%', fontSize: 12 }}
+            suggestions={knownCategories}
           />
         </div>
         <div style={{ display: 'flex', gap: 12 }}>

@@ -11,6 +11,7 @@ import {
   setRiskLinkedMilestonesAction,
   type RiskStatus,
 } from '@/app/projects/[id]/risks/actions';
+import { CategoryInput } from './RiskMatrixView';
 import type { Risk, RiskLinkedWp, RiskLinkedMs, RiskOwner } from './RiskMatrixView';
 
 type Props = {
@@ -19,6 +20,8 @@ type Props = {
   workPackages: RiskLinkedWp[];
   milestones: RiskLinkedMs[];
   allOwners: RiskOwner[];
+  /** Bereits vergebene Kategorien im Projekt — Vorschläge für das Feld. */
+  knownCategories: string[];
   onClose: () => void;
 };
 
@@ -37,6 +40,7 @@ export function RiskInspector({
   workPackages,
   milestones,
   allOwners,
+  knownCategories,
   onClose,
 }: Props) {
   const router = useRouter();
@@ -196,15 +200,14 @@ export function RiskInspector({
         {/* Kategorie */}
         <div>
           <div className="label">Kategorie</div>
-          <input
-            className="input"
-            type="text"
-            defaultValue={risk.category ?? ''}
-            onBlur={(e) => {
-              if ((e.target.value || null) !== (risk.category ?? null))
-                patch({ category: e.target.value || null });
+          <CategoryInput
+            key={risk.id}
+            value={risk.category ?? ''}
+            suggestions={knownCategories}
+            onCommit={(next) => {
+              if ((next || null) !== (risk.category ?? null))
+                patch({ category: next || null });
             }}
-            style={{ width: '100%', fontSize: 12 }}
           />
         </div>
 
