@@ -76,6 +76,21 @@ export type DashboardTopWp = {
   daysOverdue?: number; // nur für überfällige
 };
 
+/**
+ * Ein Stichtag im Burndown. Alle drei Werte sind „wie viele Arbeitspakete
+ * waren an diesem Tag noch offen" — dieselbe Einheit, dieselbe Achse.
+ */
+export type BurndownPoint = {
+  /** yyyy-mm-dd */
+  date: string;
+  /** Nach eingefrorener Baseline geplanter Restbestand. */
+  planBaseline: number;
+  /** Nach aktuellen Fälligkeiten geplanter Restbestand. */
+  planCurrent: number;
+  /** Tatsächlicher Restbestand. Null für Tage in der Zukunft. */
+  actual: number | null;
+};
+
 export type ProjectDashboard = ProjectOverviewRow & {
   overdueList: DashboardOverdueItem[];
   upcomingMilestones: DashboardMilestone[];
@@ -83,6 +98,9 @@ export type ProjectDashboard = ProjectOverviewRow & {
     overdueRatio: number; // 0..1, Anteil der ÜBRIGEN die überfällig sind
   };
   velocity: VelocityPoint[];
+  burndown: BurndownPoint[];
+  /** Anzahl geschlossener Pakete ohne closed_at aus GitLab — siehe buildBurndown. */
+  burndownEstimated: number;
   conflicts: DashboardConflict[];
   resourceWarnings: DashboardResourceWarning[];
   topOpen: DashboardTopWp[];
@@ -225,6 +243,8 @@ export async function getProjectDashboard(
           stateCache: true,
           startDate: true,
           endDate: true,
+          baselineEndDate: true,
+          closedAt: true,
           progressPercent: true,
           parentId: true,
           lastSyncedAt: true,
@@ -383,6 +403,7 @@ export async function getProjectDashboard(
       overdueRatio: openWps > 0 ? overdueCount / openWps : 0,
     },
     velocity,
+    ...buildBurndown(wps, now),
     conflicts,
     resourceWarnings,
     topOpen,
@@ -537,6 +558,114 @@ function extractInitials(cache: unknown): string[] {
     if (initials) out.push(initials);
   }
   return out;
+}
+
+// ─── Burndown ────────────────────────────────────────────────────────────
+
+// Obergrenze für Stützstellen. Darüber wird ausgedünnt: ein Jahresprojekt
+// braucht keine 365 Punkte, um seine Form zu zeigen, und jeder Punkt landet
+// als Koordinate im ausgelieferten HTML.
+const BURNDOWN_MAX_POINTS = 180;
+
+/**
+ * Restbestand offener Arbeitspakete über die Zeit — dreimal, aus drei Quellen:
+ *
+ *   planBaseline  eingefrorene Baseline (baselineEndDate)
+ *   planCurrent   aktuelle Fälligkeiten (endDate)
+ *   actual        tatsächliche Abschlüsse (closedAt aus GitLab)
+ *
+ * Die beiden Plan-Linien laufen bis zum Ende des Zeitfensters, die Ist-Linie
+ * endet heute — eine in die Zukunft gezeichnete Ist-Linie wäre eine Behauptung
+ * über nicht Geschehenes.
+ *
+ * Pakete ohne Baseline fallen für planBaseline auf endDate zurück, sonst
+ * startete die Baseline-Linie unter dem Gesamtbestand und der Vergleich wäre
+ * gegen unterschiedliche Grundgesamtheiten geführt.
+ */
+function buildBurndown(
+  wps: Array<{
+    stateCache: string;
+    startDate: Date;
+    endDate: Date;
+    baselineEndDate: Date | null;
+    closedAt: Date | null;
+    lastSyncedAt: Date;
+  }>,
+  now: Date,
+): { burndown: BurndownPoint[]; burndownEstimated: number } {
+  if (wps.length === 0) return { burndown: [], burndownEstimated: 0 };
+
+  const today = startOfDay(now);
+
+  // Geschlossen, aber ohne closed_at aus GitLab: kann bei Paketen auftreten,
+  // die vor der Einführung des Feldes synchronisiert wurden. lastSyncedAt ist
+  // die beste verfügbare Näherung — die Zahl wird ausgewiesen, damit ein
+  // Ausreisser im Chart erklärbar bleibt.
+  let estimated = 0;
+  const closures = wps.map((w) => {
+    if (w.stateCache !== 'closed') return null;
+    if (w.closedAt) return startOfDay(w.closedAt);
+    estimated += 1;
+    return startOfDay(w.lastSyncedAt);
+  });
+
+  const planBaselineDates = wps.map((w) => startOfDay(w.baselineEndDate ?? w.endDate));
+  const planCurrentDates = wps.map((w) => startOfDay(w.endDate));
+
+  const times = [
+    ...wps.map((w) => startOfDay(w.startDate).getTime()),
+    ...planBaselineDates.map((d) => d.getTime()),
+    ...planCurrentDates.map((d) => d.getTime()),
+    ...closures.filter((d): d is Date => d !== null).map((d) => d.getTime()),
+    today.getTime(),
+  ];
+  const first = new Date(Math.min(...times));
+  const last = new Date(Math.max(...times));
+
+  const totalDays = Math.round((last.getTime() - first.getTime()) / 86_400_000);
+  const step = Math.max(1, Math.ceil((totalDays + 1) / BURNDOWN_MAX_POINTS));
+
+  const burndown: BurndownPoint[] = [];
+  for (let offset = 0; offset <= totalDays; offset += step) {
+    const d = addDays(first, offset);
+    const t = d.getTime();
+    burndown.push({
+      date: isoDate(d),
+      planBaseline: planBaselineDates.filter((p) => p.getTime() > t).length,
+      planCurrent: planCurrentDates.filter((p) => p.getTime() > t).length,
+      actual:
+        t <= today.getTime()
+          ? closures.filter((c) => c === null || c.getTime() > t).length
+          : null,
+    });
+  }
+  // Der letzte Tag fällt bei einem Schritt > 1 sonst unter den Tisch, und
+  // gerade er trägt die Aussage (Plan läuft auf 0, Ist auf den Restbestand).
+  const lastSample = burndown[burndown.length - 1];
+  if (lastSample && lastSample.date !== isoDate(last)) {
+    const t = last.getTime();
+    burndown.push({
+      date: isoDate(last),
+      planBaseline: planBaselineDates.filter((p) => p.getTime() > t).length,
+      planCurrent: planCurrentDates.filter((p) => p.getTime() > t).length,
+      actual:
+        t <= today.getTime()
+          ? closures.filter((c) => c === null || c.getTime() > t).length
+          : null,
+    });
+  }
+
+  return { burndown, burndownEstimated: estimated };
+}
+
+function startOfDay(d: Date): Date {
+  const out = new Date(d);
+  out.setHours(0, 0, 0, 0);
+  return out;
+}
+
+function isoDate(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 // Anzahl historischer Kalenderwochen im Velocity-Chart. Aktuelle KW ist

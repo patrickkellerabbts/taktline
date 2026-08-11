@@ -1,6 +1,13 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { ChevronRight, AlertTriangle, Diamond, Activity, ExternalLink } from 'lucide-react';
+import {
+  ChevronRight,
+  AlertTriangle,
+  Diamond,
+  Activity,
+  ExternalLink,
+  TrendingDown,
+} from 'lucide-react';
 import { auth } from '@/auth';
 import { AppHeader, SubHeader } from '@/components/layout/AppHeader';
 import {
@@ -12,6 +19,7 @@ import {
   type ProjectDashboard,
 } from '@/lib/reports';
 import { Donut } from '@/components/reports/Donut';
+import { Burndown } from '@/components/reports/Burndown';
 
 type Props = {
   searchParams: Promise<{ project?: string }>;
@@ -314,6 +322,20 @@ function DashboardSection({ dashboard }: { dashboard: ProjectDashboard }) {
         </div>
       </div>
 
+      {/* Verlauf vor Detail: Burndown breit, Velocity daneben. Unter 1100px
+          bricht das Grid auf zwei Zeilen um — der Burndown misst seine Breite
+          selbst und zeichnet dann einfach schmaler. */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, alignItems: 'flex-start' }}>
+        {/* 2:1 solange beide Basisbreiten nebeneinander passen, sonst
+            untereinander in voller Breite. */}
+        <div style={{ flex: '2 1 520px', minWidth: 0 }}>
+          <BurndownSection dashboard={dashboard} />
+        </div>
+        <div style={{ flex: '1 1 280px', minWidth: 0 }}>
+          <VelocitySection velocity={dashboard.velocity} />
+        </div>
+      </div>
+
       {/* Top-WP-Listen pro Kategorie (Offen / Fertig / Überfällig) */}
       <div
         style={{
@@ -345,9 +367,6 @@ function DashboardSection({ dashboard }: { dashboard: ProjectDashboard }) {
         />
       </div>
 
-      {/* Velocity */}
-      <VelocitySection velocity={dashboard.velocity} />
-
       {/* Listen: Überfällige + Meilensteine */}
       <div
         style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 14 }}
@@ -359,18 +378,44 @@ function DashboardSection({ dashboard }: { dashboard: ProjectDashboard }) {
   );
 }
 
-function Legend({ items }: { items: Array<{ color: string; label: string; value: number }> }) {
+function Legend({ items }: { items: Array<{ color: string; label: string; value?: number }> }) {
   return (
     <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
       {items.map((it) => (
         <div key={it.label} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
           <span style={{ width: 10, height: 10, background: it.color, borderRadius: 2 }} />
           <span style={{ color: 'var(--color-ink-2)' }}>{it.label}</span>
-          <span className="mono tabnum" style={{ color: 'var(--color-ink-3)' }}>
-            {it.value}
-          </span>
+          {it.value != null && (
+            <span className="mono tabnum" style={{ color: 'var(--color-ink-3)' }}>
+              {it.value}
+            </span>
+          )}
         </div>
       ))}
+    </div>
+  );
+}
+
+function BurndownSection({ dashboard }: { dashboard: ProjectDashboard }) {
+  const { burndown, burndownEstimated } = dashboard;
+  return (
+    <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+      <SectionHeader icon={<TrendingDown size={11} />} title="Burndown">
+        {/* Ohne Zahlen: die Linien tragen ihre aktuellen Werte am Ende, eine
+            zweite Zahl in der Legende müsste einen anderen Zeitpunkt meinen. */}
+        <Legend
+          items={[
+            { color: 'var(--color-accent)', label: 'Ist' },
+            { color: 'var(--color-ink-2)', label: 'Plan' },
+            { color: 'var(--color-ink-4)', label: 'Baseline' },
+          ]}
+        />
+      </SectionHeader>
+      {burndown.length < 2 ? (
+        <Empty>Zu wenig Daten für einen Verlauf.</Empty>
+      ) : (
+        <Burndown points={burndown} estimated={burndownEstimated} />
+      )}
     </div>
   );
 }
