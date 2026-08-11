@@ -327,6 +327,29 @@ button { font-family: inherit; }
 .topbar__nav a:hover { background: var(--color-surface-3); color: var(--color-ink); }
 .topbar__nav a[aria-current="page"] { background: var(--color-surface-3); color: var(--color-ink); }
 .topbar__spacer { flex: 1; }
+
+/* Links, Bilder und SVGs sind im Browser von Haus aus ziehbar. In einer
+   Navigationsleiste ist das nie gewollt: ein Klick, der ein paar Pixel
+   verrutscht, zieht statt zu navigieren ein Geisterbild des Links über die
+   Seite. -webkit-user-drag greift in Chrome und Safari; Firefox kennt die
+   Eigenschaft nicht, dort erledigt es draggable="false" an den Elementen
+   selbst (siehe AppHeader.tsx). */
+.topbar a,
+.topbar img,
+.topbar svg,
+.subbar a,
+.subbar img,
+.subbar svg {
+  -webkit-user-drag: none;
+}
+
+/* Navigationsbeschriftungen zusätzlich nicht markierbar — ein danebengegangener
+   Doppelklick soll keine blaue Auswahl hinterlassen. Breadcrumbs bleiben
+   markierbar: dort will man den Projektnamen kopieren können. */
+.topbar__brand,
+.topbar__nav a {
+  user-select: none;
+}
 .topbar__user {
   display: flex; align-items: center; gap: 8px;
   font-size: var(--fs-sm); color: var(--color-ink-2);

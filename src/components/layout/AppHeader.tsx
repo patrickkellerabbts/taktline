@@ -15,7 +15,7 @@ type Props = {
 export function AppHeader({ username, active = 'projects' }: Props) {
   return (
     <header className="topbar">
-      <Link href="/projects" className="topbar__brand">
+      <Link href="/projects" className="topbar__brand" draggable={false}>
         <TaktMark size={22} />
         <span
           className="topbar__brand-text"
@@ -49,19 +49,39 @@ export function AppHeader({ username, active = 'projects' }: Props) {
       <div className="hr-v" style={{ height: 22, alignSelf: 'center' }} />
 
       <nav className="topbar__nav">
-        <Link href="/projects" aria-current={active === 'projects' ? 'page' : undefined}>
+        <Link
+          href="/projects"
+          aria-current={active === 'projects' ? 'page' : undefined}
+          draggable={false}
+        >
           Projekte
         </Link>
-        <Link href="/gantt" aria-current={active === 'gantt' ? 'page' : undefined}>
+        <Link
+          href="/gantt"
+          aria-current={active === 'gantt' ? 'page' : undefined}
+          draggable={false}
+        >
           Gantt
         </Link>
-        <Link href="/resources" aria-current={active === 'resources' ? 'page' : undefined}>
+        <Link
+          href="/resources"
+          aria-current={active === 'resources' ? 'page' : undefined}
+          draggable={false}
+        >
           Ressourcen
         </Link>
-        <Link href="/risks" aria-current={active === 'risks' ? 'page' : undefined}>
+        <Link
+          href="/risks"
+          aria-current={active === 'risks' ? 'page' : undefined}
+          draggable={false}
+        >
           Risiken
         </Link>
-        <Link href="/reports" aria-current={active === 'reports' ? 'page' : undefined}>
+        <Link
+          href="/reports"
+          aria-current={active === 'reports' ? 'page' : undefined}
+          draggable={false}
+        >
           Berichte
         </Link>
       </nav>
@@ -120,7 +140,7 @@ export function SubHeader({ crumbs = [], title, badge, right }: SubHeaderProps) 
               <span key={`${label}-${i}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                 {i > 0 && <ChevronRight size={11} />}
                 {href && !isLast ? (
-                  <Link href={href} className="subbar__crumb-link" style={labelStyle}>
+                  <Link href={href} className="subbar__crumb-link" style={labelStyle} draggable={false}>
                     {label}
                   </Link>
                 ) : (
