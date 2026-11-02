@@ -16,7 +16,7 @@
 
 ### 1.2 Explizit Non-Goals (V1)
 
-- ❌ Kanban-Boards, Sprint-Planning, Time-Tracking, Budget-Management — GitLab und/oder Folge-Releases.
+- ❌ Sprint-Planning, Time-Tracking, Budget-Management — GitLab und/oder Folge-Releases. (Kanban-Board und User Stories sind nachträglich dazugekommen, siehe AGENTS.md.)
 - ❌ Multi-Tenant / SaaS-Modell — wir haben eine Instanz pro Firma.
 - ❌ Eigene User-Verwaltung — Authentifizierung läuft komplett über GitLab SSO.
 - ❌ Mobile App — Web-only, Desktop-first.

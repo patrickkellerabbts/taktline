@@ -23,6 +23,7 @@ export const GanttMetaSchema = z.object({
   baseline_end: z.string().optional(),
   parent_iid: z.number().int().positive().optional(),
   progress: z.number().int().min(0).max(100).optional(),
+  story_points: z.number().int().min(0).optional(),
   dependencies: z
     .array(
       z.object({
@@ -59,6 +60,16 @@ export function parseGanttMeta(description: string | null | undefined): GanttMet
   if (!parsed || typeof parsed !== 'object') return null;
   const result = GanttMetaSchema.safeParse(parsed);
   return result.success ? result.data : null;
+}
+
+// Story Points für den Sync-Update: fehlt der Block, sind die Punkte weg (GitLab
+// gewinnt). Nur ein kaputter Block lässt den letzten bekannten Wert stehen.
+export function syncedStoryPoints(
+  description: string | null | undefined,
+  meta: GanttMeta | null,
+): number | null | undefined {
+  if (meta) return meta.story_points ?? null;
+  return /<!--\s*gantt-meta:v\d+/.test(description ?? '') ? undefined : null;
 }
 
 // Entfernt jeglichen gantt-meta-Block aus der Description (idempotent).

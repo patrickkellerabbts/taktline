@@ -5,6 +5,7 @@
 //   - dueTasks: dem aktuellen User zugewiesene WPs die in 7 Tagen fällig sind
 
 import { prisma } from './db';
+import { SCHEDULED_WORK_PACKAGE } from '@/lib/agile/board';
 
 export type ActivityItem = {
   id: string;
@@ -174,6 +175,7 @@ export async function getNotifications(
     const candidates = await prisma.workPackage.findMany({
       where: {
         deletedAt: null,
+        ...SCHEDULED_WORK_PACKAGE,
         endDate: { gte: now, lte: dueDeadline },
         stateCache: 'opened',
       },
