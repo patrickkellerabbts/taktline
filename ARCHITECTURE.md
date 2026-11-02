@@ -173,7 +173,7 @@ prisma/
 ## Lese-Links
 
 Personen ohne GitLab-Konto (z.B. Dozenten) bekommen über `/share/<token>` Lesezugriff
-auf genau ein Projekt: Gantt, Board, Berichte und Ressourcen, aber keine Risiken.
+auf genau ein Projekt: Gantt, Board, Sprints, Berichte und Ressourcen, aber keine Risiken.
 
 - **Keine Session:** Gäste sind keine Benutzer. Alle Server Actions verlangen `auth()`
   und lehnen sie deshalb von selbst ab. Der Nur-Lese-Modus der Ansichten (`readOnly`)

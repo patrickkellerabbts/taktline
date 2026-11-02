@@ -145,7 +145,7 @@ function ShareDialog({ projectId, onClose }: { projectId: string; onClose: () =>
 
         <div className="card__bd story-dialog__body">
           <p className="share__hint">
-            Wer den Link hat, sieht ohne Anmeldung Gantt, Board, Berichte und Ressourcen dieses
+            Wer den Link hat, sieht ohne Anmeldung Gantt, Board, Sprints, Berichte und Ressourcen dieses
             Projekts, inklusive der Namen zugewiesener Personen. Risiken bleiben verborgen und ändern
             lässt sich nichts.
           </p>
