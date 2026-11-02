@@ -64,6 +64,9 @@ const LABELS = [
   { name: 'board::todo', color: '#76746c' },
   { name: 'board::doing', color: '#1f6feb' },
   { name: 'board::review', color: '#a16207' },
+  { name: 'sprint::1', color: '#76746c' },
+  { name: 'sprint::2', color: '#76746c' },
+  { name: 'sprint::3', color: '#76746c' },
 ];
 
 // ─── Work Packages ───────────────────────────────────────────────────
@@ -133,8 +136,19 @@ const STORIES: WpSeed[] = [
   { key: 's1', iid: 41, title: 'Produkte nach Einsatzgebiet filtern', start: '2026-10-26', end: '2026-11-09', progress: 0, unscheduled: true, labels: [STORY_LABEL, 'frontend'], story: { role: 'Besucherin', goal: 'Produkte nach Einsatzgebiet filtern', benefit: 'ich schneller das passende Angebot finde', criteria: ['Filter lässt sich mit der Tastatur bedienen', 'Auswahl bleibt beim Zurücknavigieren erhalten'], points: 5 } },
   { key: 's2', iid: 42, title: 'Newsletter im Footer abonnieren', start: '2026-10-26', end: '2026-11-09', progress: 0, unscheduled: true, labels: [STORY_LABEL, 'board::todo', 'frontend'], story: { role: 'Besucher', goal: 'mich im Footer für den Newsletter anmelden', benefit: 'ich über neue Produkte informiert bleibe', criteria: ['Double-Opt-in per E-Mail', 'Abmeldung jederzeit möglich'], points: 3 } },
   { key: 's3', iid: 43, title: 'Beiträge im Voraus terminieren', start: '2026-11-02', end: '2026-11-13', progress: 0, labels: [STORY_LABEL, 'board::doing', 'content'], assignees: [101], story: { role: 'Redakteurin', goal: 'Beiträge im Voraus terminieren', benefit: 'sie auch im Urlaub pünktlich erscheinen', criteria: ['Datum und Uhrzeit wählbar', 'Vorschau vor der Veröffentlichung'], points: 8 } },
+  { key: 's5', iid: 45, title: 'Standorte auf einer Karte anzeigen', start: '2026-10-05', end: '2026-10-16', progress: 100, state: 'closed', labels: [STORY_LABEL, 'frontend'], assignees: [105], story: { role: 'Besucherin', goal: 'Standorte auf einer Karte sehen', benefit: 'ich den nächsten Standort schnell finde', criteria: ['Karte lädt ohne Cookies von Dritten'], points: 5 } },
+  { key: 's6', iid: 46, title: 'Downloads nach Sprache filtern', start: '2026-10-26', end: '2026-11-09', progress: 0, unscheduled: true, labels: [STORY_LABEL, 'frontend'], story: { role: 'Besucher', goal: 'Downloads nach Sprache filtern', benefit: 'ich nur passende Dokumente sehe', criteria: ['Filter merkt sich die Auswahl'], points: 3 } },
   { key: 's4', iid: 44, title: 'Kontaktanfragen im Backend einsehen', start: '2026-10-26', end: '2026-11-09', progress: 0, unscheduled: true, labels: [STORY_LABEL, 'board::review', 'backend'], assignees: [102], story: { role: 'Support-Mitarbeiter', goal: 'Kontaktanfragen im Backend einsehen', benefit: 'keine Anfrage verloren geht', criteria: ['Liste nach Eingangsdatum sortiert'], points: 2 } },
 ];
+
+// Relativ zum Tag des Seeds, damit der aktive Sprint auch nach Monaten noch läuft.
+const SPRINTS = [
+  { number: 1, name: 'Sprint 1', goal: 'Grundgerüst der Startseite steht', state: 'closed', from: -19, to: -6 },
+  { number: 2, name: 'Sprint 2', goal: 'Redaktion kann Inhalte selbst pflegen', state: 'active', from: -5, to: 8 },
+  { number: 3, name: 'Sprint 3', goal: null, state: 'planned', from: 9, to: 22 },
+] as const;
+
+const SPRINT_OF: Record<string, number> = { s5: 1, p2a: 1, p2b: 1, s2: 2, s3: 2, s4: 2, p3b: 2, p3c: 2, s6: 3 };
 
 // ─── Meilensteine ────────────────────────────────────────────────────
 
@@ -285,6 +299,7 @@ export async function seedDemoData(prisma: PrismaClient): Promise<SeedResult> {
     const labels = [
       ...(w.labels ?? []),
       ...(!w.story && !w.summary && w.state !== 'closed' && w.progress > 0 ? ['board::doing'] : []),
+      ...(SPRINT_OF[w.key] ? [`sprint::${SPRINT_OF[w.key]}`] : []),
     ];
     const created = await prisma.workPackage.create({
       data: {
@@ -341,6 +356,28 @@ export async function seedDemoData(prisma: PrismaClient): Promise<SeedResult> {
     await prisma.workPackage.update({
       where: { id: wpIds.get(w.key)! },
       data: { parentId: wpIds.get(w.parent)! },
+    });
+  }
+
+  const seedDay = new Date();
+  seedDay.setUTCHours(0, 0, 0, 0);
+  for (const s of SPRINTS) {
+    const done = [...WPS, ...STORIES].filter((w) => SPRINT_OF[w.key] === s.number && w.state === 'closed');
+    await prisma.sprint.create({
+      data: {
+        projectId: project.id,
+        number: s.number,
+        name: s.name,
+        goal: s.goal,
+        state: s.state,
+        startDate: addDays(seedDay, s.from),
+        endDate: addDays(seedDay, s.to),
+        startedAt: s.state === 'planned' ? null : addDays(seedDay, s.from),
+        closedAt: s.state === 'closed' ? addDays(seedDay, s.to) : null,
+        completedCount: s.state === 'closed' ? done.length : null,
+        completedPoints:
+          s.state === 'closed' ? done.reduce((sum, w) => sum + (w.story?.points ?? 0), 0) : null,
+      },
     });
   }
 

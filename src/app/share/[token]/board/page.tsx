@@ -15,7 +15,14 @@ export default async function ShareBoardPage({ params }: { params: Promise<{ tok
   return (
     <ShareFrame token={token} tab="board" projectName={link.projectName}>
       <div style={{ flex: 1, padding: '14px 18px', minHeight: 0, display: 'flex' }}>
-        <BoardView readOnly projectId={board.id} cards={board.cards} people={[]} projectLabels={[]} />
+        <BoardView
+          readOnly
+          projectId={board.id}
+          cards={board.cards}
+          sprints={board.sprints}
+          people={[]}
+          projectLabels={[]}
+        />
       </div>
     </ShareFrame>
   );

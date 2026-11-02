@@ -8,9 +8,10 @@
 
 export const STORY_LABEL = 'type::story';
 const BOARD_LABEL_PREFIX = 'board::';
+const SPRINT_LABEL_RE = /^sprint::(\d+)$/;
 
 export const BOARD_COLUMNS = [
-  { id: 'backlog', title: 'Backlog', label: null },
+  { id: 'backlog', title: 'Offen', label: null },
   { id: 'todo', title: 'To Do', label: 'board::todo' },
   { id: 'doing', title: 'In Arbeit', label: 'board::doing' },
   { id: 'review', title: 'Review', label: 'board::review' },
@@ -43,7 +44,7 @@ export function isStory(names: readonly string[]): boolean {
 
 /** Labels, die das Board selbst verwaltet und die Nutzer nicht direkt wählen. */
 export function isReservedLabel(name: string): boolean {
-  return name === STORY_LABEL || name.startsWith(BOARD_LABEL_PREFIX);
+  return name === STORY_LABEL || name.startsWith(BOARD_LABEL_PREFIX) || SPRINT_LABEL_RE.test(name);
 }
 
 export function columnForIssue(state: string, names: readonly string[]): BoardColumnId {
@@ -64,6 +65,32 @@ export function planColumnLabels(
   return {
     add: targetLabel && !names.includes(targetLabel) ? [targetLabel] : [],
     remove: names.filter((n) => n.startsWith(BOARD_LABEL_PREFIX) && n !== targetLabel),
+  };
+}
+
+export function sprintLabel(number: number): string {
+  return `sprint::${number}`;
+}
+
+/** Bei mehreren Sprint-Labels (in GitLab möglich) gewinnt der neueste Sprint. */
+export function sprintNumberOf(names: readonly string[]): number | null {
+  let highest: number | null = null;
+  for (const name of names) {
+    const match = name.match(SPRINT_LABEL_RE);
+    if (match && (highest === null || Number(match[1]) > highest)) highest = Number(match[1]);
+  }
+  return highest;
+}
+
+/** Label-Änderung für einen Sprint-Wechsel; `null` = zurück in den Backlog. */
+export function planSprintLabels(
+  names: readonly string[],
+  target: number | null,
+): { add: string[]; remove: string[] } {
+  const targetLabel = target === null ? null : sprintLabel(target);
+  return {
+    add: targetLabel && !names.includes(targetLabel) ? [targetLabel] : [],
+    remove: names.filter((n) => SPRINT_LABEL_RE.test(n) && n !== targetLabel),
   };
 }
 

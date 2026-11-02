@@ -104,6 +104,38 @@ model Project {
   labels       ProjectLabel[]
   risks        Risk[]
   shareLinks   ShareLink[]
+  sprints      Sprint[]
+}
+
+enum SprintState {
+  planned
+  active
+  closed
+}
+
+// Die Zuordnung steht als Label `sprint::<number>` am Issue (lib/agile/board.ts).
+// Hier liegt nur, was GitLab nicht kennt. Dass pro Projekt höchstens ein Sprint
+// aktiv ist, sichert ein partieller Index aus der Migration.
+model Sprint {
+  id        String      @id @default(uuid())
+  projectId String
+  number    Int
+  name      String
+  goal      String?     @db.Text
+  startDate DateTime    @db.Date
+  endDate   DateTime    @db.Date
+  state     SprintState @default(planned)
+  startedAt DateTime?
+  closedAt  DateTime?
+  // Beim Abschluss eingefroren, damit spätere Issue-Änderungen die Bilanz nicht
+  // umschreiben.
+  completedPoints Int?
+  completedCount  Int?
+  createdAt DateTime    @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, number])
 }
 
 // Lese-Link für Personen ohne GitLab-Konto (siehe lib/share/links.ts). Es gibt

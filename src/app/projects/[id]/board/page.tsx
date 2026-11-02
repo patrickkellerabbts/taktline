@@ -45,6 +45,7 @@ export default async function BoardPage({ params, searchParams }: Props) {
         <BoardView
           projectId={project.id}
           cards={project.cards}
+          sprints={project.sprints}
           people={people}
           projectLabels={project.labels
             .filter((l) => !isReservedLabel(l.name))

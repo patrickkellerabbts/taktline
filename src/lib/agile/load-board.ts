@@ -1,7 +1,8 @@
 import { prisma } from '@/lib/db';
 import type { BoardCard, BoardPerson } from '@/components/board/BoardView';
 import { stripGanttMeta } from '@/lib/gitlab/meta';
-import { columnForIssue, isReservedLabel, isStory, labelNames } from './board';
+import { columnForIssue, isReservedLabel, isStory, labelNames, sprintNumberOf } from './board';
+import { loadProjectSprints } from './sprints';
 import { parseStoryDescription } from './story';
 
 // `guest` = Lese-Link: Avatare enthalten URLs der GitLab-Instanz.
@@ -35,6 +36,9 @@ export async function loadProjectBoard(projectId: string, audience: 'member' | '
   });
   if (!project) return null;
 
+  const sprints = await loadProjectSprints(projectId);
+  const sprintNumbers = new Set(sprints.map((s) => s.number));
+
   const labelColors = new Map(project.labels.map((l) => [l.name, l.color ?? undefined]));
 
   const cards: BoardCard[] = project.workPackages.map((wp) => {
@@ -46,6 +50,8 @@ export async function loadProjectBoard(projectId: string, audience: 'member' | '
       iid: wp.gitlabIssueIid,
       title: wp.titleCache,
       column: columnForIssue(wp.stateCache, names),
+      // Ein Label ohne passenden Sprint (von Hand in GitLab gesetzt) zählt nicht.
+      sprintNumber: ((n) => (n !== null && sprintNumbers.has(n) ? n : null))(sprintNumberOf(names)),
       isStory: story,
       storyPoints: wp.storyPoints,
       labels: names
@@ -64,6 +70,7 @@ export async function loadProjectBoard(projectId: string, audience: 'member' | '
     id: project.id,
     name: project.nameCache,
     labels: project.labels,
+    sprints,
     cards,
   };
 }
