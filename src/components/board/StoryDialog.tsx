@@ -8,6 +8,7 @@ import {
   type StoryInput,
 } from '@/app/projects/[id]/board/actions';
 import { BOARD_COLUMNS, type BoardColumnId } from '@/lib/agile/board';
+import type { SprintInfo } from '@/lib/agile/sprints';
 import type { BoardCard, BoardLabel, BoardPerson } from './BoardView';
 
 type Props = {
@@ -17,6 +18,9 @@ type Props = {
   column?: BoardColumnId;
   people: BoardPerson[];
   projectLabels: BoardLabel[];
+  sprints: SprintInfo[];
+  /** Vorauswahl für neue Stories: der Sprint, den das Board gerade zeigt. */
+  defaultSprintNumber: number | null;
   onClose: () => void;
   onSaved: () => void;
 };
@@ -25,7 +29,17 @@ function toggle<T>(list: T[], value: T): T[] {
   return list.includes(value) ? list.filter((v) => v !== value) : [...list, value];
 }
 
-export function StoryDialog({ projectId, card, column, people, projectLabels, onClose, onSaved }: Props) {
+export function StoryDialog({
+  projectId,
+  card,
+  column,
+  people,
+  projectLabels,
+  sprints,
+  defaultSprintNumber,
+  onClose,
+  onSaved,
+}: Props) {
   const story = card?.story;
   const [title, setTitle] = useState(card?.title ?? '');
   const [role, setRole] = useState(story?.role ?? '');
@@ -36,6 +50,12 @@ export function StoryDialog({ projectId, card, column, people, projectLabels, on
   const [points, setPoints] = useState(card?.storyPoints?.toString() ?? '');
   const [assigneeIds, setAssigneeIds] = useState((card?.assignees ?? []).map((a) => a.id));
   const [labels, setLabels] = useState((card?.labels ?? []).map((l) => l.name));
+  const [sprintNumber, setSprintNumber] = useState<number | null>(
+    card ? card.sprintNumber : defaultSprintNumber,
+  );
+  const currentSprint = sprints.find((s) => s.number === card?.sprintNumber);
+  const sprintLocked = currentSprint?.state === 'closed';
+  const sprintOptions = sprints.filter((s) => s.state !== 'closed' || s.number === card?.sprintNumber);
   const [targetColumn, setTargetColumn] = useState<BoardColumnId>(column ?? 'backlog');
   const [startDate, setStartDate] = useState(card?.startDate ?? '');
   const [endDate, setEndDate] = useState(card?.endDate ?? '');
@@ -72,6 +92,7 @@ export function StoryDialog({ projectId, card, column, people, projectLabels, on
       criteria: criteria.split('\n'),
       notes,
       storyPoints: parsedPoints,
+      sprintNumber,
       assigneeIds,
       labels,
       startDate: startDate || null,
@@ -195,6 +216,24 @@ export function StoryDialog({ projectId, card, column, people, projectLabels, on
                 disabled={pending}
               />
             </Field>
+            {sprints.length > 0 && (
+              <Field label="Sprint" htmlFor="story-sprint">
+                <select
+                  id="story-sprint"
+                  className="input"
+                  value={sprintNumber ?? ''}
+                  onChange={(e) => setSprintNumber(e.target.value ? Number(e.target.value) : null)}
+                  disabled={pending || sprintLocked}
+                >
+                  <option value="">Kein Sprint</option>
+                  {sprintOptions.map((s) => (
+                    <option key={s.id} value={s.number}>
+                      {s.name}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            )}
             {!card && (
               <Field label="Spalte" htmlFor="story-column">
                 <select

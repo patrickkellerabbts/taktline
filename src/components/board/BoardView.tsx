@@ -20,6 +20,7 @@ import { moveBoardCardAction } from '@/app/projects/[id]/board/actions';
 import { AssigneeAvatars } from '@/components/gantt/AssigneeAvatars';
 import { BOARD_COLUMNS, type BoardColumnId } from '@/lib/agile/board';
 import type { StoryFields } from '@/lib/agile/story';
+import type { SprintInfo } from '@/lib/agile/sprints';
 import { StoryDialog } from './StoryDialog';
 
 export type BoardPerson = { id: number; username: string; name: string; avatarUrl?: string };
@@ -30,6 +31,7 @@ export type BoardCard = {
   iid: number;
   title: string;
   column: BoardColumnId;
+  sprintNumber: number | null;
   isStory: boolean;
   storyPoints: number | null;
   labels: BoardLabel[];
@@ -44,12 +46,15 @@ type Props = {
   cards: BoardCard[];
   people: BoardPerson[];
   projectLabels: BoardLabel[];
+  sprints: SprintInfo[];
   initialStoryId?: string;
   /** Lese-Link: nichts verschieben oder anlegen, Stories nur ansehen. */
   readOnly?: boolean;
 };
 
 type DialogState = { mode: 'create'; column: BoardColumnId } | { mode: 'edit'; cardId: string } | null;
+
+type SprintFilter = 'all' | 'none' | number;
 
 const CARD_PREFIX = 'card:';
 const COLUMN_PREFIX = 'column:';
@@ -67,6 +72,7 @@ export function BoardView({
   cards: serverCards,
   people,
   projectLabels,
+  sprints,
   initialStoryId,
   readOnly = false,
 }: Props) {
@@ -76,6 +82,13 @@ export function BoardView({
   const [syncedCards, setSyncedCards] = useState(serverCards);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [onlyStories, setOnlyStories] = useState(false);
+  const activeSprint = sprints.find((s) => s.state === 'active') ?? null;
+  // Läuft ein Sprint, ist er das Board. Der Rest bleibt über die Auswahl erreichbar.
+  const [sprintFilter, setSprintFilter] = useState<SprintFilter>(() => {
+    const opened = serverCards.find((c) => c.id === initialStoryId);
+    if (opened) return 'all';
+    return activeSprint?.number ?? 'all';
+  });
   const [error, setError] = useState<string | null>(null);
   const [dialog, setDialog] = useState<DialogState>(() =>
     serverCards.some((c) => c.id === initialStoryId && c.isStory)
@@ -92,9 +105,16 @@ export function BoardView({
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
   const visible = useMemo(
-    () => (onlyStories ? cards.filter((c) => c.isStory) : cards),
-    [cards, onlyStories],
+    () =>
+      cards.filter((c) => {
+        if (onlyStories && !c.isStory) return false;
+        if (sprintFilter === 'all') return true;
+        if (sprintFilter === 'none') return c.sprintNumber === null;
+        return c.sprintNumber === sprintFilter;
+      }),
+    [cards, onlyStories, sprintFilter],
   );
+  const selectedSprint = typeof sprintFilter === 'number' ? sprints.find((s) => s.number === sprintFilter) : undefined;
   const activeCard = cards.find((c) => c.id === activeId) ?? null;
   const editedCard = dialog?.mode === 'edit' ? cards.find((c) => c.id === dialog.cardId) : undefined;
 
@@ -159,6 +179,34 @@ export function BoardView({
           />
           Nur User Stories
         </label>
+        {sprints.length > 0 && (
+          <select
+            className="input board__sprint-select"
+            aria-label="Sprint"
+            value={String(sprintFilter)}
+            onChange={(e) => {
+              const v = e.target.value;
+              setSprintFilter(v === 'all' || v === 'none' ? v : Number(v));
+            }}
+          >
+            <option value="all">Alle Aufgaben</option>
+            <option value="none">Ohne Sprint</option>
+            {[...sprints].reverse().map((s) => (
+              <option key={s.id} value={s.number}>
+                {s.name}
+                {s.state === 'active' ? ' (aktiv)' : s.state === 'closed' ? ' (abgeschlossen)' : ' (geplant)'}
+              </option>
+            ))}
+          </select>
+        )}
+        {selectedSprint && (
+          <span className="board__sprint-info">
+            <span className="mono">
+              bis {selectedSprint.endDate.split('-').reverse().join('.')}
+            </span>
+            {selectedSprint.goal && <span className="board__sprint-goal">Ziel: {selectedSprint.goal}</span>}
+          </span>
+        )}
         {error && (
           <span role="alert" className="board__error">
             {error}
@@ -214,6 +262,10 @@ export function BoardView({
           column={dialog.mode === 'create' ? dialog.column : undefined}
           people={people}
           projectLabels={projectLabels}
+          sprints={sprints}
+          defaultSprintNumber={
+            selectedSprint && selectedSprint.state !== 'closed' ? selectedSprint.number : null
+          }
           onClose={() => setDialog(null)}
           onSaved={() => {
             setDialog(null);

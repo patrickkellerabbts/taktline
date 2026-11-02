@@ -18,6 +18,9 @@ import {
   isStory,
   labelNames,
   planColumnLabels,
+  planSprintLabels,
+  sprintLabel,
+  sprintNumberOf,
   type BoardColumnId,
 } from '@/lib/agile/board';
 import { buildStoryDescription, mergeCriteria, parseStoryDescription } from '@/lib/agile/story';
@@ -188,6 +191,7 @@ const StoryInputSchema = z
     criteria: z.array(z.string()),
     notes: z.string(),
     storyPoints: z.number().int().min(0, 'Story Points dürfen nicht negativ sein').nullable(),
+    sprintNumber: z.number().int().positive().nullable(),
     assigneeIds: z.array(z.number().int().positive()),
     labels: z.array(z.string()),
     startDate: isoDateString.nullable(),
@@ -207,6 +211,29 @@ const StoryInputSchema = z
   });
 
 export type StoryInput = z.input<typeof StoryInputSchema>;
+
+/** Abgeschlossene Sprints nehmen nichts mehr auf und geben nichts mehr her. */
+async function sprintChangeError(
+  projectId: string,
+  from: number | null,
+  to: number | null,
+): Promise<string | null> {
+  if (from === to) return null;
+  const numbers = [from, to].filter((n): n is number => n !== null);
+  const sprints = await prisma.sprint.findMany({
+    where: { projectId, number: { in: numbers } },
+    select: { number: true, state: true },
+  });
+  if (sprints.find((s) => s.number === from)?.state === 'closed') {
+    return 'Aufgaben abgeschlossener Sprints bleiben dort';
+  }
+  if (to !== null) {
+    const target = sprints.find((s) => s.number === to);
+    if (!target) return 'Sprint nicht gefunden';
+    if (target.state === 'closed') return 'Dieser Sprint ist abgeschlossen';
+  }
+  return null;
+}
 
 export async function createStoryAction(
   projectId: string,
@@ -229,6 +256,9 @@ export async function createStoryAction(
   });
   if (!project) return { ok: false, error: 'Projekt nicht gefunden' };
 
+  const sprintError = await sprintChangeError(project.id, null, input.sprintNumber);
+  if (sprintError) return { ok: false, error: sprintError };
+
   const meta: GanttMeta = {};
   if (input.startDate) meta.start_date = input.startDate;
   if (input.storyPoints !== null) meta.story_points = input.storyPoints;
@@ -247,6 +277,7 @@ export async function createStoryAction(
   const labels = [
     STORY_LABEL,
     ...(columnLabel ? [columnLabel] : []),
+    ...(input.sprintNumber !== null ? [sprintLabel(input.sprintNumber)] : []),
     ...input.labels.filter((l) => !isReservedLabel(l)),
   ];
 
@@ -357,10 +388,14 @@ export async function updateStoryAction(
   else delete meta.story_points;
   const description = serializeGanttMeta(text, meta);
 
+  const sprintError = await sprintChangeError(wp.project.id, sprintNumberOf(names), input.sprintNumber);
+  if (sprintError) return { ok: false, error: sprintError };
+  const sprintChange = planSprintLabels(names, input.sprintNumber);
+
   const wanted = input.labels.filter((l) => !isReservedLabel(l));
   const current = names.filter((l) => !isReservedLabel(l));
-  const addLabels = wanted.filter((l) => !current.includes(l));
-  const removeLabels = current.filter((l) => !wanted.includes(l));
+  const addLabels = [...wanted.filter((l) => !current.includes(l)), ...sprintChange.add];
+  const removeLabels = [...current.filter((l) => !wanted.includes(l)), ...sprintChange.remove];
 
   const payload: Record<string, unknown> = { assigneeIds: input.assigneeIds };
   if (input.title !== wp.titleCache) payload.title = input.title;

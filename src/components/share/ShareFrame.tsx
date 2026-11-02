@@ -5,6 +5,7 @@ import { TaktMark } from '@/components/brand/TaktMark';
 const TABS = [
   { id: 'gantt', label: 'Gantt' },
   { id: 'board', label: 'Board' },
+  { id: 'sprints', label: 'Sprints' },
   { id: 'reports', label: 'Berichte' },
   { id: 'resources', label: 'Ressourcen' },
 ] as const;

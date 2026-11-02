@@ -67,13 +67,14 @@ Das Kanban-Board liest ausschliesslich GitLab-native Felder. Wer Issues per API 
 
 | Spalte | Abbildung in GitLab |
 |---|---|
-| Backlog | offen, kein `board::`-Label |
+| Offen | offen, kein `board::`-Label |
 | To Do | offen, Label `board::todo` |
 | In Arbeit | offen, Label `board::doing` |
 | Review | offen, Label `board::review` |
 | Done | Issue geschlossen |
 
 - **Nur ein Spalten-Label pro Issue.** GitLab CE setzt das nicht durch. Bei mehreren gewinnt die am weitesten fortgeschrittene Spalte; die nächste Verschiebung auf dem Board entfernt die übrigen.
+- **Sprint** = Label `sprint::<nummer>`, höchstens eines pro Issue (bei mehreren gewinnt die höchste Nummer). Name, Ziel und Daten liegen nur in der Taktline-DB; ein Label ohne passenden Sprint wird ignoriert.
 - **User Story** = Label `type::story`. Ohne `start_date` und ohne `due_date` erscheint sie nur auf dem Board, nicht im Gantt.
 - **Story-Text** steht als Markdown vor dem Block. Dieses Muster erkennt der Dialog, alles andere zeigt er als Notizen:
 
