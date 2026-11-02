@@ -19,14 +19,19 @@ const VIEWPORT = { width: 1600, height: 1000 };
 
 type Shot = {
   file: string;
-  path: string;
+  path: string | (() => string);
   description: string;
+  // Ohne Session-Cookie öffnen: so sieht es jemand mit einem Lese-Link.
+  guest?: boolean;
   // Abweichende Fenstergrösse — Seiten mit wenig Inhalt bekommen sonst einen
   // grossen leeren Bereich unter der eigentlichen Darstellung.
   viewport?: { width: number; height: number };
   // Optionaler Schritt vor dem Auslösen (Panel öffnen, Element anklicken …).
   prepare?: (page: Page) => Promise<void>;
 };
+
+// Wird beim Aufnehmen von share-links.png angelegt und danach als Gast geöffnet.
+let sharePath = '';
 
 const SHOTS: Shot[] = [
   {
@@ -39,6 +44,49 @@ const SHOTS: Shot[] = [
       await page.getByText('Startseite umsetzen', { exact: true }).first().click();
       await page.waitForTimeout(600);
     },
+  },
+  {
+    file: 'board.png',
+    path: `/projects/${DEMO_PROJECT_ID}/board`,
+    description: 'Kanban-Board mit dem aktiven Sprint',
+    viewport: { width: 1600, height: 640 },
+  },
+  {
+    file: 'story-dialog.png',
+    path: `/projects/${DEMO_PROJECT_ID}/board`,
+    description: 'User Story bearbeiten',
+    prepare: async (page) => {
+      await page.getByText('Beiträge im Voraus terminieren', { exact: true }).click();
+      await page.locator('#story-title').waitFor();
+    },
+  },
+  {
+    file: 'sprints.png',
+    path: `/projects/${DEMO_PROJECT_ID}/sprints`,
+    description: 'Sprint-Planung mit Backlog',
+    viewport: { width: 1600, height: 760 },
+  },
+  {
+    file: 'share-links.png',
+    path: `/projects/${DEMO_PROJECT_ID}/board`,
+    description: 'Lese-Link erstellen',
+    viewport: { width: 1600, height: 760 },
+    prepare: async (page) => {
+      await page.getByRole('button', { name: 'Teilen' }).click();
+      await page.locator('#share-label').fill('Dozent Projektmanagement');
+      await page.getByRole('button', { name: 'Link erstellen' }).click();
+      const url = page.locator('#share-url');
+      await url.waitFor();
+      sharePath = new URL(await url.inputValue()).pathname;
+      await page.locator('#share-label').blur();
+    },
+  },
+  {
+    file: 'share-view.png',
+    path: () => `${sharePath}/sprints`,
+    description: 'Lese-Link: Ansicht ohne Anmeldung',
+    viewport: { width: 1600, height: 760 },
+    guest: true,
   },
   {
     file: 'risk-matrix.png',
@@ -87,10 +135,19 @@ async function main() {
     },
   ]);
 
-  const page = await context.newPage();
+  const memberPage = await context.newPage();
+  const guestContext = await browser.newContext({
+    viewport: VIEWPORT,
+    deviceScaleFactor: 2,
+    locale: 'de-DE',
+    timezoneId: 'Europe/Zurich',
+    colorScheme: 'light',
+  });
+  const guestPage = await guestContext.newPage();
 
   for (const shot of SHOTS) {
-    const url = `${BASE_URL}${shot.path}`;
+    const page = shot.guest ? guestPage : memberPage;
+    const url = `${BASE_URL}${typeof shot.path === 'function' ? shot.path() : shot.path}`;
     process.stdout.write(`→ ${shot.file} … `);
     await page.setViewportSize(shot.viewport ?? VIEWPORT);
     const res = await page.goto(url, { waitUntil: 'networkidle' });

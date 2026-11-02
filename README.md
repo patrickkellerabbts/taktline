@@ -9,7 +9,27 @@ Projektmanagement-Tool als Bridge zwischen GitLab CE und vollwertiger PM-Softwar
 ![Gantt-Ansicht mit Hierarchie, Dependency-Pfeilen und Inspector](docs/screenshots/gantt-overview.png)
 
 <details>
-<summary>Weitere Ansichten: Risikomatrix, Ressourcen, Berichte</summary>
+<summary>Weitere Ansichten: Board, Sprints, Lese-Links, Risikomatrix, Ressourcen, Berichte</summary>
+
+**Kanban-Board** — Karten per Drag-and-Drop zwischen den Spalten verschieben, standardmässig mit dem aktiven Sprint:
+
+![Kanban-Board](docs/screenshots/board.png)
+
+**User Stories** — mit „Als … möchte ich … damit …“, Akzeptanzkriterien und Story Points; landen als normales GitLab-Issue:
+
+![User Story bearbeiten](docs/screenshots/story-dialog.png)
+
+**Sprints** — Aufgaben aus dem Backlog einplanen, Sprints starten und abschliessen:
+
+![Sprint-Planung](docs/screenshots/sprints.png)
+
+**Lese-Links** — für Personen ohne GitLab-Konto, mit Ablaufdatum und jederzeit widerrufbar:
+
+![Lese-Link erstellen](docs/screenshots/share-links.png)
+
+So sieht es ohne Anmeldung aus, nur lesend und ohne Risiken:
+
+![Ansicht über einen Lese-Link](docs/screenshots/share-view.png)
 
 **Risikomatrix** — 5×5 nach Wahrscheinlichkeit und Auswirkung, Karten per Drag-and-Drop verschiebbar, umschaltbar zwischen Pre- und Post-Mitigation:
 
@@ -44,6 +64,10 @@ Projektmanagement-Tool als Bridge zwischen GitLab CE und vollwertiger PM-Softwar
   - Klick-Picker für Parent und Dependencies
 - **Editierbar im Inspector:** Titel, Start/Ende, Progress, Status, Zuständige, Labels, Parent, Vorgänger
 - **Erstellung neuer Aufgaben** direkt aus der App (legt GitLab-Issue + lokales Work Package an)
+- **Kanban-Board** mit fünf Spalten; Spalten liegen als Labels in GitLab, „Done“ ist der Issue-Status
+- **User Stories** mit Akzeptanzkriterien und Story Points; ohne Datum erscheinen sie nur auf dem Board, nicht im Gantt
+- **Sprints:** planen, starten, abschliessen, Board nach Sprint filtern; Zuordnung als Label am Issue
+- **Lese-Links** ohne GitLab-Konto: Gantt, Board, Sprints, Berichte und Ressourcen eines Projekts, ohne Risiken
 - **Webhook-Receiver** für Live-Updates aus GitLab (siehe [Deployment](#deployment))
 
 ---
@@ -166,8 +190,9 @@ npm run dev
 
 Die Bilder oben stammen nicht aus einem echten Projekt, sondern aus einem
 Seed mit frei erfundenen Daten. Der gleiche Seed ist auch praktisch, um die
-App ohne GitLab-Zugang anzuschauen: er legt ein Beispielprojekt mit 26
-Aufgaben, Hierarchie, Dependencies, Meilensteinen, Auslastung und Risiken an —
+App ohne GitLab-Zugang anzuschauen: er legt ein Beispielprojekt mit 32
+Aufgaben, Hierarchie, Dependencies, Meilensteinen, Sprints, Auslastung und
+Risiken an —
 plus eine Session, die den OAuth-Login überspringt.
 
 Alles läuft gegen eine **separate Datenbank** (`taktline_demo`) im selben
@@ -198,8 +223,9 @@ Was wo definiert ist:
 | [`scripts/demo-constants.ts`](scripts/demo-constants.ts) | Session-Token + Projekt-ID, die beide Scripts teilen |
 
 Der Seed ist bewusst destruktiv: er leert die Demo-DB vor jedem Lauf und
-setzt ein festes Bezugsdatum, damit wiederholte Läufe identische Bilder
-liefern.
+setzt für Aufgaben ein festes Bezugsdatum. Die Sprints liegen dagegen relativ zum
+Tag des Seeds, damit in der Demo immer einer läuft; ihre Daten ändern sich also
+von Tag zu Tag.
 
 ### Als öffentliche Demo betreiben
 
