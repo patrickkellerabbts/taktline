@@ -169,3 +169,19 @@ prisma/
   schema.prisma         # Datenmodell
   migrations/           # Migration-History
 ```
+
+## Lese-Links
+
+Personen ohne GitLab-Konto (z.B. Dozenten) bekommen über `/share/<token>` Lesezugriff
+auf genau ein Projekt: Gantt, Board, Berichte und Ressourcen, aber keine Risiken.
+
+- **Keine Session:** Gäste sind keine Benutzer. Alle Server Actions verlangen `auth()`
+  und lehnen sie deshalb von selbst ab. Der Nur-Lese-Modus der Ansichten (`readOnly`)
+  sorgt nur dafür, dass nichts Bearbeitbares angeboten wird.
+- **Token:** 256 Bit Zufall, in der DB liegt nur der SHA-256-Hash (`ShareLink`). Der Link
+  wird einmal angezeigt und lässt sich danach nur widerrufen, nicht erneut abrufen.
+- **Verwaltung:** Anlegen, Auflisten und Widerrufen prüft die Maintainer-Rolle in GitLab.
+  Scheitert die Prüfung, gibt es keinen Zugriff.
+- **Keine GitLab-URLs:** Merge Requests und Avatare gehen nicht an Gäste.
+- **Erreichbarkeit:** Der Link wird aus `AUTH_URL` gebaut. Gäste brauchen Zugriff auf die
+  Taktline-Instanz selbst, das GitLab muss für sie nicht erreichbar sein.

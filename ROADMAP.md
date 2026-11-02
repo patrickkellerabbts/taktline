@@ -61,6 +61,13 @@ Spart das Hin-und-Her-Springen in GitLab für kurze Rückfragen.
   konfigurierbare Spalten
 - **Heatmap-Overlay** auf der Timeline — Aktivitäts-Dichte pro Tag
 
+## Rechte
+
+- **Rechte-Management** — Heute kennt Taktline keine eigenen Rollen: wer sich per
+  GitLab anmelden kann, sieht alle aktivierten Projekte und kann deren Risiken
+  ändern. Lese-Links sind die einzige feinere Stufe. Offen: Zugriff pro Projekt
+  an die GitLab-Mitgliedschaft binden, Rollen für Risiken
+
 ## Tiefere GitLab-Integration
 
 - **MR-Status & Pipeline-Status** pro WP (siehe Top-2)

@@ -153,6 +153,10 @@ type Props = {
   gitlabBaseUrl?: string;
   gitlabProjectPath?: string;
   projectInternalId: string;
+  // Lese-Link: kein Inspector, kein Ziehen, keine Hierarchie-Änderung und keine
+  // gespeicherten Präferenzen. Der Server würde Schreibversuche von Gästen
+  // ohnehin ablehnen; hier geht es darum, sie gar nicht erst anzubieten.
+  readOnly?: boolean;
   // Optionale WP-ID die beim Mount vorausgewählt wird — z.B. wenn der User
   // aus einem Notification-Link oder der Resource-View kommt mit ?wp=<id>
   initialSelectedId?: string;
@@ -287,6 +291,7 @@ export function GanttView({
   gitlabBaseUrl,
   gitlabProjectPath,
   projectInternalId,
+  readOnly = false,
   initialSelectedId,
   initialSelectedMilestoneId,
   initialDisplay,
@@ -328,7 +333,7 @@ export function GanttView({
   // gemountet. Live-View ist via @media print hidden, Print-View nur im
   // Print-Modus sichtbar. Wir triggern window.print() im next-frame nach Mount.
   const [printing, setPrinting] = useState(false);
-  const [inspectorOpen, setInspectorOpen] = useState(true);
+  const [inspectorOpen, setInspectorOpen] = useState(!readOnly);
   // Wenn die Seite mit ?wp=<id> aufgerufen wird (z.B. aus der Resource-View)
   // wird der Inspector direkt mit diesem WP geöffnet.
   const [selectedId, setSelectedId] = useState<string | null>(initialSelectedId ?? null);
@@ -421,6 +426,7 @@ export function GanttView({
 
   // Indent: setze Parent auf den vorherigen Sibling (gleiche Tiefe + gleicher Parent)
   function indentSelected() {
+    if (readOnly) return;
     if (!selectedId) return;
     const idx = visibleNodes.findIndex((n) => n.bar.id === selectedId);
     if (idx <= 0) return;
@@ -441,6 +447,7 @@ export function GanttView({
 
   // Outdent: neuer Parent = Großeltern-Bar (oder null falls Parent eine Wurzel ist)
   function outdentSelected() {
+    if (readOnly) return;
     if (!selectedId) return;
     const cur = bars.find((b) => b.id === selectedId);
     if (!cur || !cur.parentId) return;
@@ -1089,6 +1096,7 @@ export function GanttView({
       firstPrefsRunRef.current = false;
       return;
     }
+    if (readOnly) return;
     const handle = setTimeout(() => {
       void savePreferencesAction({
         showDeps,
@@ -1104,7 +1112,7 @@ export function GanttView({
       });
     }, 500);
     return () => clearTimeout(handle);
-  }, [showDeps, showCrit, showWeekends, showBaseline, density, filter, zoom, leftColWidth, inspectorWidth, leftListCollapsed]);
+  }, [showDeps, showCrit, showWeekends, showBaseline, density, filter, zoom, leftColWidth, inspectorWidth, leftListCollapsed, readOnly]);
 
   // ── Print-Trigger ──────────────────────────────────────────────────
   // Lauscht auf das Custom-Event `taktline:gantt-print` (vom ExportButton
@@ -1334,7 +1342,7 @@ export function GanttView({
 
   // PointerDown auf Bar startet Drag (Modus aus Klick-Zone).
   function startDrag(bar: GanttBar, mode: DragState['mode'], clientX: number) {
-    if (bar.isSummary) return; // Summary folgt Kindern
+    if (readOnly || bar.isSummary) return; // Summary folgt Kindern
     setSelectedId(bar.id);
     if (!inspectorOpen) setInspectorOpen(true);
     const eff = effectiveDates(bar);
@@ -1505,6 +1513,7 @@ export function GanttView({
                   selectedId={selectedId}
                   expandAll={expandAll}
                   collapseAll={() => collapseAll(allParentIds)}
+                  readOnly={readOnly}
                   indentSelected={indentSelected}
                   outdentSelected={outdentSelected}
                 />
@@ -1562,6 +1571,7 @@ export function GanttView({
                       collapseAll(allParentIds);
                       setMoreMenuOpen(false);
                     }}
+                    readOnly={readOnly}
                     indentSelected={() => {
                       indentSelected();
                       setMoreMenuOpen(false);
@@ -1627,21 +1637,23 @@ export function GanttView({
         </div>
 
         {/* Panels */}
-        <div className="ribbon__group" style={{ borderRight: 'none' }}>
-          <div className="ribbon__tools">
-            <button
-              type="button"
-              className="tool"
-              aria-pressed={inspectorOpen}
-              onClick={() => setInspectorOpen((v) => !v)}
-              title="Inspektor-Panel ein/aus"
-            >
-              <PanelRight size={16} />
-              <span>Inspektor</span>
-            </button>
+        {!readOnly && (
+          <div className="ribbon__group" style={{ borderRight: 'none' }}>
+            <div className="ribbon__tools">
+              <button
+                type="button"
+                className="tool"
+                aria-pressed={inspectorOpen}
+                onClick={() => setInspectorOpen((v) => !v)}
+                title="Inspektor-Panel ein/aus"
+              >
+                <PanelRight size={16} />
+                <span>Inspektor</span>
+              </button>
+            </div>
+            <div className="ribbon__label">Panels</div>
           </div>
-          <div className="ribbon__label">Panels</div>
-        </div>
+        )}
       </div>
 
       {/* Picker-Modus-Banner */}
@@ -2153,7 +2165,7 @@ export function GanttView({
                 const isDragging = drag?.id === bar.id;
                 const isCritical = showCrit && criticalIds.has(bar.id);
                 const edgeSize = bar.isSummary ? 0 : Math.min(8, width / 3);
-                const canDrag = !bar.isSummary;
+                const canDrag = !readOnly && !bar.isSummary;
 
                 // Baseline (Plan-Bar) wenn aktiviert und beide Felder
                 // gesetzt. Schmale graue Bar unter der Hauptbar im
@@ -2747,7 +2759,7 @@ export function GanttView({
       </div>
         </div>
         {(() => {
-          if (!inspectorOpen) return null;
+          if (readOnly || !inspectorOpen) return null;
           // Milestone-Inspector wird angezeigt wenn ein Diamant ausgewählt
           // ist. Create-Flow läuft über NewMilestoneButton im SubHeader
           // (eigener Modal-Dialog), nicht über den Slide-Out.
@@ -3179,12 +3191,14 @@ function HierarchyTools({
   selectedId,
   expandAll,
   collapseAll,
+  readOnly,
   indentSelected,
   outdentSelected,
 }: {
   selectedId: string | null;
   expandAll: () => void;
   collapseAll: () => void;
+  readOnly: boolean;
   indentSelected: () => void;
   outdentSelected: () => void;
 }) {
@@ -3198,28 +3212,32 @@ function HierarchyTools({
         <ChevronRight size={16} />
         <span>Alle zu</span>
       </button>
-      <button
-        type="button"
-        className="tool"
-        onClick={indentSelected}
-        disabled={!selectedId}
-        title="Ausgewähltes Work Package unter dem vorherigen einrücken"
-        style={!selectedId ? { opacity: 0.4, cursor: 'not-allowed' } : undefined}
-      >
-        <Indent size={16} />
-        <span>Einrücken</span>
-      </button>
-      <button
-        type="button"
-        className="tool"
-        onClick={outdentSelected}
-        disabled={!selectedId}
-        title="Ausgewähltes Work Package eine Ebene rausrücken"
-        style={!selectedId ? { opacity: 0.4, cursor: 'not-allowed' } : undefined}
-      >
-        <Outdent size={16} />
-        <span>Ausrücken</span>
-      </button>
+      {!readOnly && (
+        <>
+          <button
+            type="button"
+            className="tool"
+            onClick={indentSelected}
+            disabled={!selectedId}
+            title="Ausgewähltes Work Package unter dem vorherigen einrücken"
+            style={!selectedId ? { opacity: 0.4, cursor: 'not-allowed' } : undefined}
+          >
+            <Indent size={16} />
+            <span>Einrücken</span>
+          </button>
+          <button
+            type="button"
+            className="tool"
+            onClick={outdentSelected}
+            disabled={!selectedId}
+            title="Ausgewähltes Work Package eine Ebene rausrücken"
+            style={!selectedId ? { opacity: 0.4, cursor: 'not-allowed' } : undefined}
+          >
+            <Outdent size={16} />
+            <span>Ausrücken</span>
+          </button>
+        </>
+      )}
     </>
   );
 }

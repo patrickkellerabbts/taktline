@@ -43,6 +43,7 @@ model User {
   auditLogs           AuditLog[]
   ownedRisks          Risk[]         @relation("RiskOwner")
   riskHistoryEntries  RiskHistory[]
+  createdShareLinks   ShareLink[]    @relation("ShareLinkCreatedBy")
 }
 
 // Account speichert die OAuth-Tokens. access_token + refresh_token werden vor
@@ -102,6 +103,27 @@ model Project {
   milestones   Milestone[]
   labels       ProjectLabel[]
   risks        Risk[]
+  shareLinks   ShareLink[]
+}
+
+// Lese-Link für Personen ohne GitLab-Konto (siehe lib/share/links.ts). Es gibt
+// bewusst keine Session und keinen User für Gäste; gespeichert ist nur der
+// Hash des Tokens.
+model ShareLink {
+  id              String    @id @default(uuid())
+  projectId       String
+  label           String
+  tokenHash       String    @unique
+  createdByUserId String?
+  createdAt       DateTime  @default(now())
+  expiresAt       DateTime
+  revokedAt       DateTime?
+  lastUsedAt      DateTime?
+
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdBy User?   @relation("ShareLinkCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@index([projectId])
 }
 
 // Cache aller GitLab-Project-Labels (auch noch keinem Issue zugewiesene).
