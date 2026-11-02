@@ -30,6 +30,25 @@ export type SerializedMatrix = {
 };
 
 type Cell = { percent: number; contributions: Contribution[] };
+
+function TaskRow({
+  href,
+  onClick,
+  style,
+  children,
+}: {
+  href: string | null;
+  onClick: () => void;
+  style: React.CSSProperties;
+  children: React.ReactNode;
+}) {
+  if (!href) return <div style={style}>{children}</div>;
+  return (
+    <Link href={href} onClick={onClick} className="bell-row" style={style}>
+      {children}
+    </Link>
+  );
+}
 type Popover = { user: ResourceUser; week: ResourceWeek; cell: Cell };
 
 const ROW_HEIGHT = 36;
@@ -37,7 +56,14 @@ const CELL_WIDTH = 56;
 const NAME_COL_WIDTH = 220;
 const HEADER_HEIGHT = 44;
 
-export function ResourceHeatmap({ data }: { data: SerializedMatrix }) {
+export function ResourceHeatmap({
+  data,
+  linkTasks = true,
+}: {
+  data: SerializedMatrix;
+  /** false = Lese-Link: Aufgaben sind reiner Text, ohne Sprung in den Gantt. */
+  linkTasks?: boolean;
+}) {
   // Server-Daten in interne Form deserialisieren
   const weeks: ResourceWeek[] = data.weeks.map((w) => ({
     ...w,
@@ -247,11 +273,10 @@ export function ResourceHeatmap({ data }: { data: SerializedMatrix }) {
           </div>
           <div style={{ overflowY: 'auto', flex: 1 }}>
             {popover.cell.contributions.map((c) => (
-              <Link
+              <TaskRow
                 key={c.workPackageId}
-                href={`/projects/${c.projectId}/gantt?wp=${c.workPackageId}`}
+                href={linkTasks ? `/projects/${c.projectId}/gantt?wp=${c.workPackageId}` : null}
                 onClick={() => setPopover(null)}
-                className="bell-row"
                 style={{
                   textDecoration: 'none',
                   color: 'var(--color-ink)',
@@ -300,11 +325,13 @@ export function ResourceHeatmap({ data }: { data: SerializedMatrix }) {
                 >
                   {c.percent}%
                 </span>
-                <ExternalLink
-                  size={11}
-                  style={{ color: 'var(--color-ink-4)', flexShrink: 0, marginTop: 3 }}
-                />
-              </Link>
+                {linkTasks && (
+                  <ExternalLink
+                    size={11}
+                    style={{ color: 'var(--color-ink-4)', flexShrink: 0, marginTop: 3 }}
+                  />
+                )}
+              </TaskRow>
             ))}
           </div>
         </div>

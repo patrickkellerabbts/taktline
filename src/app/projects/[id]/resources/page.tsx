@@ -6,11 +6,8 @@ import { prisma } from '@/lib/db';
 import { parsePreferences } from '@/lib/preferences';
 import { savePreferencesAction } from '@/lib/preferences-actions';
 import { AppHeader, SubHeader } from '@/components/layout/AppHeader';
-import { getResourceMatrix } from '@/lib/resources';
-import {
-  ResourceHeatmap,
-  type SerializedMatrix,
-} from '@/components/resources/ResourceHeatmap';
+import { getResourceMatrix, serializeResourceMatrix } from '@/lib/resources';
+import { ResourceHeatmap } from '@/components/resources/ResourceHeatmap';
 
 type Props = {
   params: Promise<{ id: string }>;
@@ -41,32 +38,7 @@ export default async function ProjectResourcesPage({ params }: Props) {
 
   const matrix = await getResourceMatrix({ weeksAhead: 16, projectId: id });
 
-  const cellsObj: SerializedMatrix['cells'] = {};
-  for (const [uid, weekMap] of matrix.cells.entries()) {
-    const inner: SerializedMatrix['cells'][string] = {};
-    for (const [wk, cell] of weekMap.entries()) {
-      inner[wk] = {
-        percent: cell.percent,
-        contributions: cell.contributions.map((c) => ({
-          ...c,
-          startDate: c.startDate.toISOString(),
-          endDate: c.endDate.toISOString(),
-        })),
-      };
-    }
-    cellsObj[String(uid)] = inner;
-  }
-
-  const data: SerializedMatrix = {
-    weeks: matrix.weeks.map((w) => ({
-      key: w.key,
-      isoYear: w.isoYear,
-      isoWeek: w.isoWeek,
-      startDate: w.startDate.toISOString(),
-    })),
-    users: matrix.users,
-    cells: cellsObj,
-  };
+  const data = serializeResourceMatrix(matrix);
 
   let maxCount = 0;
   for (const m of matrix.cells.values()) {

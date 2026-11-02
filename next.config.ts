@@ -20,6 +20,20 @@ const nextConfig: NextConfig = {
   // Standalone-Output: kompakter self-contained Build für Docker-Container
   // (~150 MB statt ~1 GB). Erzeugt .next/standalone/server.js als Entry-Point.
   output: 'standalone',
+  // Das Token steht im Pfad von /share: nicht per Referrer weitergeben, nicht
+  // indexieren, nichts zwischenspeichern (ein Widerruf muss sofort greifen).
+  async headers() {
+    return [
+      {
+        source: '/share/:path*',
+        headers: [
+          { key: 'Referrer-Policy', value: 'no-referrer' },
+          { key: 'X-Robots-Tag', value: 'noindex, nofollow' },
+          { key: 'Cache-Control', value: 'no-store' },
+        ],
+      },
+    ];
+  },
   env: {
     NEXT_PUBLIC_BUILD_SHA: buildSha,
     NEXT_PUBLIC_BUILD_TIME: buildTime,

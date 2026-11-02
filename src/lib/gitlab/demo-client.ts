@@ -275,6 +275,21 @@ function buildDemoClient() {
       },
     },
 
+    ProjectMembers: {
+      // Wie im Demo-Projekt angelegt: wer es aktiviert hat, ist Maintainer,
+      // alle anderen sind Developer.
+      async show(gitlabProjectId: number, gitlabUserId: number) {
+        const project = await prisma.project.findUnique({
+          where: { gitlabProjectId },
+          select: { activatedBy: { select: { gitlabUserId: true } } },
+        });
+        return {
+          id: gitlabUserId,
+          access_level: project?.activatedBy.gitlabUserId === gitlabUserId ? 50 : 30,
+        };
+      },
+    },
+
     IssueNotes: {
       async all(gitlabProjectId: number, iid: number) {
         // Selbstheilend: normalerweise füllt der Startup-Hook den Store, aber

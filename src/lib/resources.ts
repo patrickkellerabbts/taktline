@@ -13,6 +13,7 @@
 // berührt.
 
 import { prisma } from './db';
+import type { SerializedMatrix } from '@/components/resources/ResourceHeatmap';
 import { SCHEDULED_WORK_PACKAGE } from '@/lib/agile/board';
 
 export type WeekKey = string; // "YYYY-Www" (ISO-Wochenformat)
@@ -254,4 +255,36 @@ function isoWeekParts(d: Date): { isoYear: number; isoWeek: number } {
 
 function weekKey(year: number, week: number): string {
   return `${year}-W${String(week).padStart(2, '0')}`;
+}
+
+/** Map und Date sind nicht serialisierbar: Form für den Client-Teil der Heatmap. */
+export function serializeResourceMatrix(matrix: Awaited<ReturnType<typeof getResourceMatrix>>): SerializedMatrix {
+  const cellsObj: SerializedMatrix['cells'] = {};
+  for (const [uid, weekMap] of matrix.cells.entries()) {
+    const inner: SerializedMatrix['cells'][string] = {};
+    for (const [wk, cell] of weekMap.entries()) {
+      inner[wk] = {
+        percent: cell.percent,
+        contributions: cell.contributions.map((c) => ({
+          ...c,
+          startDate: c.startDate.toISOString(),
+          endDate: c.endDate.toISOString(),
+        })),
+      };
+    }
+    cellsObj[String(uid)] = inner;
+  }
+
+  const data: SerializedMatrix = {
+    weeks: matrix.weeks.map((w) => ({
+      key: w.key,
+      isoYear: w.isoYear,
+      isoWeek: w.isoWeek,
+      startDate: w.startDate.toISOString(),
+    })),
+    users: matrix.users,
+    cells: cellsObj,
+  };
+
+  return data;
 }
