@@ -18,6 +18,7 @@ import {
 import { computeSummaries } from '@/lib/gantt/summary';
 import { ResyncButton } from '../ResyncButton';
 import { isDemoMode } from '@/lib/demo/mode';
+import { SCHEDULED_WORK_PACKAGE } from '@/lib/agile/board';
 
 type Props = {
   params: Promise<{ id: string }>;
@@ -111,6 +112,7 @@ export default async function GanttPage({ params, searchParams }: Props) {
           endDate: true,
           progressPercent: true,
           isSummary: true,
+          isUnscheduled: true,
           parentId: true,
           labelsCache: true,
           assigneesCache: true,
@@ -156,8 +158,21 @@ export default async function GanttPage({ params, searchParams }: Props) {
   });
   if (!project) notFound();
 
+  // Stories ohne Datum gibt es hier nicht als Balken. Links darauf (Suche,
+  // Benachrichtigungen) führen deshalb zur Story auf dem Board.
+  const isHidden = (wp: { isUnscheduled: boolean; isSummary: boolean }) =>
+    wp.isUnscheduled && !wp.isSummary;
+  const selected = project.workPackages.find((wp) => wp.id === initialSelectedId);
+  if (selected && isHidden(selected)) {
+    redirect(`/projects/${id}/board?story=${selected.id}`);
+  }
+  const plannedWorkPackages = project.workPackages.filter((wp) => !isHidden(wp));
+
   const dependencies = await prisma.dependency.findMany({
-    where: { predecessor: { projectId: id } },
+    where: {
+      predecessor: { projectId: id, ...SCHEDULED_WORK_PACKAGE },
+      successor: SCHEDULED_WORK_PACKAGE,
+    },
     select: {
       id: true,
       predecessorId: true,
@@ -167,7 +182,7 @@ export default async function GanttPage({ params, searchParams }: Props) {
     },
   });
 
-  const rawBars: GanttBar[] = project.workPackages.map((wp) => ({
+  const rawBars: GanttBar[] = plannedWorkPackages.map((wp) => ({
     id: wp.id,
     text: wp.titleCache,
     gitlabIssueIid: wp.gitlabIssueIid,

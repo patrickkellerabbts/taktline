@@ -13,6 +13,7 @@
 // berührt.
 
 import { prisma } from './db';
+import { SCHEDULED_WORK_PACKAGE } from '@/lib/agile/board';
 
 export type WeekKey = string; // "YYYY-Www" (ISO-Wochenformat)
 
@@ -92,6 +93,7 @@ export async function getResourceMatrix(options?: {
   const workPackages = await prisma.workPackage.findMany({
     where: {
       deletedAt: null,
+      ...SCHEDULED_WORK_PACKAGE,
       startDate: { lte: lastWeekEnd },
       endDate: { gte: firstWeekStart },
       ...(projectId ? { projectId } : {}),

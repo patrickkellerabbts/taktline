@@ -9,6 +9,7 @@ import { markSelfPush } from '@/lib/gitlab/self-push';
 import { logger } from '@/lib/logger';
 import { GitlabTokenExpiredError } from '@/lib/auth/encrypted-adapter';
 import { syncSummaryLabels } from '@/lib/gitlab/summary-label';
+import { SCHEDULED_WORK_PACKAGE } from '@/lib/agile/board';
 
 // Helper damit die "Session abgelaufen"-Meldung an einer Stelle definiert ist
 // und Caller einheitlich darauf reagieren können.
@@ -535,7 +536,7 @@ export async function listBaselineTargetsAction(
               { baselineEndDate: { not: null } },
             ],
           }
-        : {}),
+        : SCHEDULED_WORK_PACKAGE),
     },
     select: {
       id: true,
@@ -589,7 +590,7 @@ export async function freezeBaselineProjectAction(
   if (!project) return { ok: false, error: 'Projekt nicht gefunden' };
 
   const wps = await prisma.workPackage.findMany({
-    where: { projectId, deletedAt: null },
+    where: { projectId, deletedAt: null, ...SCHEDULED_WORK_PACKAGE },
     select: {
       id: true,
       gitlabIssueIid: true,

@@ -9,7 +9,7 @@ import { isDemoMode } from '@/lib/demo/mode';
 
 type Props = {
   username?: string | null;
-  active?: 'projects' | 'gantt' | 'resources' | 'reports' | 'risks';
+  active?: 'projects' | 'gantt' | 'board' | 'resources' | 'reports' | 'risks';
 };
 
 export function AppHeader({ username, active = 'projects' }: Props) {
@@ -62,6 +62,13 @@ export function AppHeader({ username, active = 'projects' }: Props) {
           draggable={false}
         >
           Gantt
+        </Link>
+        <Link
+          href="/board"
+          aria-current={active === 'board' ? 'page' : undefined}
+          draggable={false}
+        >
+          Board
         </Link>
         <Link
           href="/resources"

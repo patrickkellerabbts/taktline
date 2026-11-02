@@ -16,6 +16,9 @@
  * Zusätzlich wird eine Session mit festem Token angelegt (DEMO_SESSION_TOKEN),
  * damit Demo-Login und Screenshot-Runner ohne GitLab-OAuth auskommen.
  */
+import { STORY_LABEL } from '@/lib/agile/board';
+import { buildStoryDescription } from '@/lib/agile/story';
+import { serializeGanttMeta } from '@/lib/gitlab/meta';
 import type { PrismaClient, DependencyType } from '@prisma/client';
 import { DEMO_SESSION_TOKEN, DEMO_PROJECT_ID } from './constants';
 
@@ -57,6 +60,10 @@ const LABELS = [
   { name: 'content', color: '#f59e0b' },
   { name: 'qs', color: '#10b981' },
   { name: 'blockiert', color: '#ef4444' },
+  { name: STORY_LABEL, color: '#e8590c' },
+  { name: 'board::todo', color: '#76746c' },
+  { name: 'board::doing', color: '#1f6feb' },
+  { name: 'board::review', color: '#a16207' },
 ];
 
 // ─── Work Packages ───────────────────────────────────────────────────
@@ -78,6 +85,10 @@ type WpSeed = {
   allocations?: { gitlabUserId: number; percent: number }[];
   baseline?: [string, string];
   milestone?: string;
+  /** User Story: Text landet in der Description, Punkte im gantt-meta-Block. */
+  story?: { role: string; goal: string; benefit: string; criteria: string[]; points: number };
+  /** Story ohne Datum: nur auf dem Board, start/end sind dann der Sync-Fallback. */
+  unscheduled?: boolean;
 };
 
 const WPS: WpSeed[] = [
@@ -114,6 +125,15 @@ const WPS: WpSeed[] = [
   { key: 'p4d', iid: 34, title: 'Redirect-Konzept alte URLs', start: '2026-10-19', end: '2026-10-30', progress: 0, parent: 'p4', labels: ['infra'], assignees: [104], allocations: [{ gitlabUserId: 104, percent: 40 }] },
   { key: 'p4e', iid: 35, title: 'Abnahme-Testlauf mit Fachbereich', start: '2026-11-02', end: '2026-11-13', progress: 0, parent: 'p4', labels: ['qs'], assignees: [105, 101], allocations: [{ gitlabUserId: 105, percent: 60 }, { gitlabUserId: 101, percent: 60 }], milestone: 'm5' },
   { key: 'p4f', iid: 36, title: 'Go-Live + Monitoring scharf schalten', start: '2026-11-16', end: '2026-11-20', progress: 0, parent: 'p4', labels: ['infra'], assignees: [104, 102], allocations: [{ gitlabUserId: 104, percent: 100 }, { gitlabUserId: 102, percent: 50 }], milestone: 'm5' },
+];
+
+// ─── User Stories ────────────────────────────────────────────────────
+
+const STORIES: WpSeed[] = [
+  { key: 's1', iid: 41, title: 'Produkte nach Einsatzgebiet filtern', start: '2026-10-26', end: '2026-11-09', progress: 0, unscheduled: true, labels: [STORY_LABEL, 'frontend'], story: { role: 'Besucherin', goal: 'Produkte nach Einsatzgebiet filtern', benefit: 'ich schneller das passende Angebot finde', criteria: ['Filter lässt sich mit der Tastatur bedienen', 'Auswahl bleibt beim Zurücknavigieren erhalten'], points: 5 } },
+  { key: 's2', iid: 42, title: 'Newsletter im Footer abonnieren', start: '2026-10-26', end: '2026-11-09', progress: 0, unscheduled: true, labels: [STORY_LABEL, 'board::todo', 'frontend'], story: { role: 'Besucher', goal: 'mich im Footer für den Newsletter anmelden', benefit: 'ich über neue Produkte informiert bleibe', criteria: ['Double-Opt-in per E-Mail', 'Abmeldung jederzeit möglich'], points: 3 } },
+  { key: 's3', iid: 43, title: 'Beiträge im Voraus terminieren', start: '2026-11-02', end: '2026-11-13', progress: 0, labels: [STORY_LABEL, 'board::doing', 'content'], assignees: [101], story: { role: 'Redakteurin', goal: 'Beiträge im Voraus terminieren', benefit: 'sie auch im Urlaub pünktlich erscheinen', criteria: ['Datum und Uhrzeit wählbar', 'Vorschau vor der Veröffentlichung'], points: 8 } },
+  { key: 's4', iid: 44, title: 'Kontaktanfragen im Backend einsehen', start: '2026-10-26', end: '2026-11-09', progress: 0, unscheduled: true, labels: [STORY_LABEL, 'board::review', 'backend'], assignees: [102], story: { role: 'Support-Mitarbeiter', goal: 'Kontaktanfragen im Backend einsehen', benefit: 'keine Anfrage verloren geht', criteria: ['Liste nach Eingangsdatum sortiert'], points: 2 } },
 ];
 
 // ─── Meilensteine ────────────────────────────────────────────────────
@@ -259,7 +279,13 @@ export async function seedDemoData(prisma: PrismaClient): Promise<SeedResult> {
   // Zwei Durchgänge: erst alle WPs anlegen, dann Parent-Verweise setzen —
   // sonst müsste die Reihenfolge in WPS der Hierarchie folgen.
   const wpIds = new Map<string, string>();
-  for (const w of WPS) {
+  for (const w of [...WPS, ...STORIES]) {
+    // Pakete, an denen schon gearbeitet wird, gehören auf dem Board nach
+    // "In Arbeit" statt in den Backlog.
+    const labels = [
+      ...(w.labels ?? []),
+      ...(!w.story && !w.summary && w.state !== 'closed' && w.progress > 0 ? ['board::doing'] : []),
+    ];
     const created = await prisma.workPackage.create({
       data: {
         projectId: project.id,
@@ -275,10 +301,27 @@ export async function seedDemoData(prisma: PrismaClient): Promise<SeedResult> {
         closedAt: w.state === 'closed' ? addDays(d(w.end), (w.iid % 5) - 1) : null,
         progressPercent: w.progress,
         isSummary: w.summary ?? false,
+        isUnscheduled: w.unscheduled ?? false,
+        storyPoints: w.story?.points ?? null,
+        descriptionCache: w.story
+          ? serializeGanttMeta(
+              buildStoryDescription({
+                role: w.story.role,
+                goal: w.story.goal,
+                benefit: w.story.benefit,
+                criteria: w.story.criteria.map((text) => ({ text, done: false })),
+                notes: '',
+              }),
+              {
+                ...(w.unscheduled ? {} : { start_date: w.start }),
+                story_points: w.story.points,
+              },
+            )
+          : undefined,
         milestoneId: w.milestone ? msIds.get(w.milestone) : null,
         baselineStartDate: w.baseline ? d(w.baseline[0]) : null,
         baselineEndDate: w.baseline ? d(w.baseline[1]) : null,
-        labelsCache: (w.labels ?? []).map((n) => {
+        labelsCache: labels.map((n) => {
           const l = LABELS.find((x) => x.name === n)!;
           return { name: l.name, color: l.color };
         }),
@@ -371,7 +414,7 @@ export async function seedDemoData(prisma: PrismaClient): Promise<SeedResult> {
 
   return {
     projectId: project.id,
-    workPackages: WPS.length,
+    workPackages: WPS.length + STORIES.length,
     milestones: MILESTONES.length,
     dependencies: DEPS.length,
     risks: RISKS.length,

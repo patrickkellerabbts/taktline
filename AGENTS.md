@@ -43,6 +43,7 @@ allocations:
 | `baseline_end` | ISO-Date `YYYY-MM-DD` | optional | Eingefrorenes Plan-Ende. Nur wirksam in Kombination mit `baseline_start`. |
 | `parent_iid` | Integer | optional | Issue-IID (project-scoped, nicht globale ID) des übergeordneten Work Packages. Erzeugt Hierarchie. |
 | `progress` | Integer 0–100 | optional | Fortschritt in Prozent. |
+| `story_points` | Integer ≥ 0 | optional | Schätzung einer User Story. GitLab CE kennt keine Issue-Weights, deshalb steht der Wert hier. |
 | `dependencies` | Array | optional | Liste der Vorgänger. Diese Issue wird abhängig von den genannten. |
 | `dependencies[].iid` | Integer | wenn `dependencies` gesetzt | IID des Vorgänger-Issues im selben Projekt. |
 | `dependencies[].type` | `FS` \| `SS` \| `FF` \| `SF` | wenn `dependencies` gesetzt | Dependency-Typ. Default `FS` (Finish-to-Start) wenn weggelassen. |
@@ -59,6 +60,31 @@ allocations:
 - `state` → GitLab Issue-State (close/reopen via API)
 - `assignee_ids` → GitLab `assignee_ids`-Feld
 - `labels` → GitLab `labels`-Feld
+
+## Board und User Stories
+
+Das Kanban-Board liest ausschliesslich GitLab-native Felder. Wer Issues per API bearbeitet, kann es direkt mitsteuern:
+
+| Spalte | Abbildung in GitLab |
+|---|---|
+| Backlog | offen, kein `board::`-Label |
+| To Do | offen, Label `board::todo` |
+| In Arbeit | offen, Label `board::doing` |
+| Review | offen, Label `board::review` |
+| Done | Issue geschlossen |
+
+- **Nur ein Spalten-Label pro Issue.** GitLab CE setzt das nicht durch. Bei mehreren gewinnt die am weitesten fortgeschrittene Spalte; die nächste Verschiebung auf dem Board entfernt die übrigen.
+- **User Story** = Label `type::story`. Ohne `start_date` und ohne `due_date` erscheint sie nur auf dem Board, nicht im Gantt.
+- **Story-Text** steht als Markdown vor dem Block. Dieses Muster erkennt der Dialog, alles andere zeigt er als Notizen:
+
+```
+**Als** Redakteurin **möchte ich** Beiträge terminieren, **damit** sie pünktlich erscheinen.
+
+### Akzeptanzkriterien
+
+- [ ] Termin wählbar
+- [x] Vorschau vorhanden
+```
 
 ## Regeln beim Schreiben
 

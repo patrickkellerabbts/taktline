@@ -1,5 +1,6 @@
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
+import { SCHEDULED_WORK_PACKAGE } from '@/lib/agile/board';
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -16,7 +17,7 @@ export async function GET(_request: Request, { params }: Params) {
       id: true,
       nameCache: true,
       workPackages: {
-        where: { deletedAt: null },
+        where: { deletedAt: null, ...SCHEDULED_WORK_PACKAGE },
         orderBy: [{ startDate: 'asc' }, { gitlabIssueIid: 'asc' }],
         select: {
           gitlabIssueIid: true,

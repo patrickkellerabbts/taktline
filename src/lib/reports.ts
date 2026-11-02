@@ -109,6 +109,10 @@ export type ProjectDashboard = ProjectOverviewRow & {
 };
 
 // ─── Overview über alle Projekte ────────────────────────────────────────
+function hasRealDates(wp: { isUnscheduled: boolean; isSummary: boolean }): boolean {
+  return !wp.isUnscheduled || wp.isSummary;
+}
+
 export async function getProjectsOverview(): Promise<ProjectOverviewRow[]> {
   const now = new Date();
 
@@ -124,6 +128,8 @@ export async function getProjectsOverview(): Promise<ProjectOverviewRow[]> {
           stateCache: true,
           startDate: true,
           endDate: true,
+          isUnscheduled: true,
+          isSummary: true,
           progressPercent: true,
           parentId: true,
         },
@@ -177,7 +183,8 @@ export async function getProjectsOverview(): Promise<ProjectOverviewRow[]> {
       const totalWps = wps.length;
       const openWps = wps.filter((w) => w.stateCache !== 'closed').length;
       const doneWps = totalWps - openWps;
-      const overdueWps = wps.filter(
+      const planned = wps.filter(hasRealDates);
+      const overdueWps = planned.filter(
         (w) => w.stateCache !== 'closed' && w.endDate < now,
       ).length;
       // Gewichtete Fortschritts-Berechnung: closed-WPs zählen 100%, offene mit
@@ -185,7 +192,7 @@ export async function getProjectsOverview(): Promise<ProjectOverviewRow[]> {
       // Bild als reines "wie viele sind closed".
       const donePercent = wpsWeightedDonePercent(wps);
       const conflictsCount = findDependencyConflicts(
-        wps.map((w) => ({
+        planned.map((w) => ({
           id: w.id,
           start: w.startDate,
           end: w.endDate,
@@ -244,6 +251,8 @@ export async function getProjectDashboard(
           startDate: true,
           endDate: true,
           baselineEndDate: true,
+          isUnscheduled: true,
+          isSummary: true,
           closedAt: true,
           progressPercent: true,
           parentId: true,
@@ -269,7 +278,11 @@ export async function getProjectDashboard(
   const totalWps = wps.length;
   const openWps = wps.filter((w) => w.stateCache !== 'closed').length;
   const doneWps = totalWps - openWps;
-  const overdueWps = wps.filter((w) => w.stateCache !== 'closed' && w.endDate < now);
+  // Alles, was mit Terminen rechnet, sieht nur Pakete mit echten Daten: bei
+  // Stories ohne Datum wäre das Ende nur der Sync-Fallback. Die reinen
+  // Bestandszahlen oben zählen sie weiterhin mit.
+  const planned = wps.filter(hasRealDates);
+  const overdueWps = planned.filter((w) => w.stateCache !== 'closed' && w.endDate < now);
   const overdueCount = overdueWps.length;
   const donePercent = wpsWeightedDonePercent(wps);
 
@@ -329,7 +342,7 @@ export async function getProjectDashboard(
     select: { id: true, predecessorId: true, successorId: true, type: true, lagDays: true },
   });
   const conflictsRaw = findDependencyConflicts(
-    wps.map((w) => ({
+    planned.map((w) => ({
       id: w.id,
       start: w.startDate,
       end: w.endDate,
@@ -355,13 +368,13 @@ export async function getProjectDashboard(
 
   // ── Resource-Warnings: Personen mit >RESOURCE_OVERLOAD_THRESHOLD WPs in
   //    irgendeiner KW der nächsten 8 Wochen ─────────────────────────────
-  const resourceWarnings = computeResourceWarnings(wps, now);
+  const resourceWarnings = computeResourceWarnings(planned, now);
 
   // ── Top-N pro Kategorie nach lastSyncedAt desc ──────────────────────
   const sortBySyncDesc = (a: { lastSyncedAt: Date }, b: { lastSyncedAt: Date }) =>
     b.lastSyncedAt.getTime() - a.lastSyncedAt.getTime();
   const topN = 5;
-  const topOpen: DashboardTopWp[] = [...wps]
+  const topOpen: DashboardTopWp[] = [...planned]
     .filter((w) => w.stateCache !== 'closed' && w.endDate >= now)
     .sort(sortBySyncDesc)
     .slice(0, topN)
@@ -371,7 +384,7 @@ export async function getProjectDashboard(
     .sort(sortBySyncDesc)
     .slice(0, topN)
     .map(mapTopWp);
-  const topOverdue: DashboardTopWp[] = [...wps]
+  const topOverdue: DashboardTopWp[] = [...planned]
     .filter((w) => w.stateCache !== 'closed' && w.endDate < now)
     .sort(sortBySyncDesc)
     .slice(0, topN)
@@ -403,7 +416,7 @@ export async function getProjectDashboard(
       overdueRatio: openWps > 0 ? overdueCount / openWps : 0,
     },
     velocity,
-    ...buildBurndown(wps, now),
+    ...buildBurndown(planned, now),
     conflicts,
     resourceWarnings,
     topOpen,

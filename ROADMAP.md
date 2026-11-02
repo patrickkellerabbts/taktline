@@ -56,7 +56,9 @@ Spart das Hin-und-Her-Springen in GitLab für kurze Rückfragen.
 - **S-Kurven (Earned Value Management)** — Plan-Wert/Ist-Wert/Kosten-Wert
   als kumulierte Kurven
 - **Calendar-View** als alternative Ansicht (Wochen-/Monatsraster)
-- **Kanban-Board** als Alternative zur Timeline (mit Spalten = States)
+- **Agile Methoden, nächste Schritte** — Kanban-Board und User Stories sind
+  umgesetzt; offen sind Sprints, Velocity pro Sprint, WIP-Limits und
+  konfigurierbare Spalten
 - **Heatmap-Overlay** auf der Timeline — Aktivitäts-Dichte pro Tag
 
 ## Tiefere GitLab-Integration

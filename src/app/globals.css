@@ -819,3 +819,45 @@ button { font-family: inherit; }
   box-shadow: 0 0 0 2px var(--accent-ring);
   border-color: var(--color-accent);
 }
+
+/* ── Kanban-Board ─────────────────────────────────────────── */
+.board { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 10px; }
+.board__toolbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.board__toggle { display: inline-flex; align-items: center; gap: 5px; font-size: var(--fs-xs); color: var(--color-ink-2); cursor: pointer; }
+.board__error { font-size: var(--fs-xs); color: var(--color-status-blocked); }
+.board__columns { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(5, minmax(220px, 1fr)); gap: 10px; overflow-x: auto; }
+.board__column { min-height: 0; display: flex; flex-direction: column; background: var(--color-surface-3); border: 1px solid var(--color-border); border-radius: var(--r-3); }
+.board__column[data-over] { border-color: var(--color-accent); box-shadow: 0 0 0 1px var(--accent-ring); }
+.board__column-hd { display: flex; align-items: center; gap: 6px; height: 34px; padding: 0 6px 0 10px; border-bottom: 1px solid var(--color-border); }
+.board__column-title { font-size: var(--fs-sm); font-weight: 600; color: var(--color-ink); }
+.board__count { font-size: var(--fs-xs); color: var(--color-ink-3); }
+.board__points { font-size: var(--fs-xs); color: var(--color-ink-2); white-space: nowrap; }
+.board__cards { flex: 1; min-height: 0; overflow-y: auto; padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+.board__card-slot { border-radius: var(--r-2); cursor: grab; touch-action: none; }
+.board__card-slot:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--accent-ring); }
+.board__card-slot[data-over] { box-shadow: 0 -2px 0 0 var(--color-accent); }
+.board__card { display: flex; flex-direction: column; gap: 6px; padding: 8px 9px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--r-2); box-shadow: var(--shadow-1); font-size: var(--fs-xs); color: var(--color-ink-3); }
+.board__card:hover { border-color: var(--color-border-3); }
+.board__card[data-dragging] { box-shadow: var(--shadow-2); cursor: grabbing; }
+.board__card-meta, .board__card-ft { display: flex; align-items: center; gap: 6px; min-height: 16px; }
+.board__card-ft:empty { display: none; }
+.board__card-date { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; }
+.board__card-title { font-size: var(--fs-sm); line-height: 1.35; color: var(--color-ink); overflow-wrap: anywhere; }
+.board__card-labels { display: flex; flex-wrap: wrap; gap: 4px 8px; }
+.board__label { display: inline-flex; align-items: center; gap: 4px; color: var(--color-ink-2); }
+.board__label-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+
+.story-dialog__backdrop { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; background: rgba(28, 27, 24, 0.4); }
+.story-dialog { width: 560px; max-width: 90vw; max-height: 90vh; display: flex; flex-direction: column; box-shadow: var(--shadow-2); }
+.story-dialog__body { display: flex; flex-direction: column; gap: 12px; overflow: auto; }
+.story-dialog__field { flex: 1; min-width: 0; }
+.story-dialog__field .input { width: 100%; }
+.story-dialog__row { display: flex; gap: 10px; }
+.story-dialog__textarea { width: 100%; padding: 6px 8px; border: 1px solid var(--color-border-2); border-radius: var(--r-2); background: var(--color-surface); font-family: var(--font-sans); font-size: var(--fs-sm); resize: vertical; }
+.story-dialog__textarea:focus { outline: none; border-color: var(--color-accent); box-shadow: 0 0 0 2px var(--accent-ring); }
+.story-dialog__hint { margin: -6px 0 0; font-size: var(--fs-xs); color: var(--color-ink-3); }
+.story-dialog__chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.story-dialog__chip { display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 8px; border: 1px solid var(--color-border-2); border-radius: 11px; background: var(--color-surface); color: var(--color-ink-2); font-size: var(--fs-xs); cursor: pointer; }
+.story-dialog__chip:hover { border-color: var(--color-border-3); }
+.story-dialog__chip[aria-pressed="true"] { background: var(--color-selected); border-color: var(--color-accent); color: var(--color-accent-h); }
+.story-dialog__error { padding: 10px; background: #fbe9e7; border: 1px solid #f4c7c0; border-radius: var(--r-2); color: #b42318; font-size: var(--fs-sm); }

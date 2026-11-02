@@ -132,6 +132,16 @@ model WorkPackage {
   progressPercent Int      @default(0)
   isSummary       Boolean  @default(false)
 
+  // User Story ohne eigenes Datum: startDate/endDate sind dann nur der
+  // Sync-Fallback. Solche Stories erscheinen auf dem Board, aber nicht im Gantt
+  // und nicht in terminbasierten Auswertungen (lib/agile/board.ts).
+  isUnscheduled Boolean @default(false)
+  // Cache vom gantt-meta:v1-Block (story_points).
+  storyPoints   Int?
+  // Reihenfolge innerhalb der Board-Spalte. Liegt nur in der App-DB, damit
+  // Sortieren keine Schreibzugriffe auf GitLab-Issues auslöst.
+  boardRank     Int?
+
   // Baseline (Plan-vs-Ist): eingefrorener Start-/Endzeitpunkt aus einem
   // früheren Stand. Cache vom gantt-meta:v1-Block (baseline_start / _end).
   // Null = keine Baseline gesetzt → Bar wird nicht doppelt gerendert.

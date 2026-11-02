@@ -172,7 +172,12 @@ function buildDemoClient() {
       async create(
         gitlabProjectId: number,
         title: string,
-        options?: { description?: string; dueDate?: string },
+        options?: {
+          description?: string;
+          dueDate?: string;
+          labels?: string;
+          assigneeIds?: number[];
+        },
       ) {
         const project = await projectByGitlabId(gitlabProjectId);
         if (!project) throw new Error(`Demo: Projekt ${gitlabProjectId} nicht gefunden`);
@@ -191,8 +196,8 @@ function buildDemoClient() {
           description: options?.description ?? '',
           due_date: options?.dueDate ?? null,
           state: 'opened',
-          assignees: [],
-          labels: [],
+          assignees: await resolveAssignees(options?.assigneeIds ?? []),
+          labels: await resolveLabels(project.id, parseLabelsPayload(options?.labels) ?? []),
         };
       },
 
@@ -227,9 +232,21 @@ function buildDemoClient() {
             : Array.isArray(wp?.assigneesCache)
               ? (wp.assigneesCache as unknown[])
               : [];
+        // add_labels/remove_labels wie beim echten Endpoint: ändern nur die
+        // genannten Labels und lassen den Rest stehen.
+        const addLabels = parseLabelsPayload(payload.addLabels) ?? [];
+        const removeLabels = parseLabelsPayload(payload.removeLabels) ?? [];
         const labels =
-          labelNames !== undefined
-            ? await resolveLabels(project.id, labelNames)
+          labelNames !== undefined || addLabels.length > 0 || removeLabels.length > 0
+            ? await resolveLabels(
+                project.id,
+                [
+                  ...new Set([
+                    ...(labelNames ?? labelsFromCache(wp?.labelsCache).map((l) => l.name)),
+                    ...addLabels,
+                  ]),
+                ].filter((name) => !removeLabels.includes(name)),
+              )
             : labelsFromCache(wp?.labelsCache);
 
         const stateEvent = payload.stateEvent;

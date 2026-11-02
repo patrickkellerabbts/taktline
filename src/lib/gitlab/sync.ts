@@ -3,7 +3,8 @@ import type { IssueSchema, MilestoneSchema } from '@gitbeaker/rest';
 import { prisma } from '@/lib/db';
 import { logger } from '@/lib/logger';
 import type { GitlabClient } from './client';
-import { parseGanttMeta } from './meta';
+import { isUnscheduledStory, labelNames } from '@/lib/agile/board';
+import { parseGanttMeta, syncedStoryPoints } from './meta';
 
 type Tx = Prisma.TransactionClient | PrismaClient;
 
@@ -221,6 +222,13 @@ export async function performInitialSync(
     // alte Schliessung nicht als Geist im Burndown zurücklässt.
     const closedAt = issue.closed_at ? new Date(issue.closed_at as string) : null;
 
+    const labelsCache = extractLabels(issue.labels);
+    const isUnscheduled = isUnscheduledStory({
+      labels: labelNames(labelsCache),
+      metaStartDate: meta?.start_date,
+      dueDate: issue.due_date as string | null,
+    });
+
     // Milestone-Referenz aus dem GitLab-Issue auflösen → lokale Milestone.id
     const issueMilestone = (issue as { milestone?: { id?: number } | null }).milestone;
     const milestoneLocalId =
@@ -241,11 +249,13 @@ export async function performInitialSync(
         baselineStartDate,
         baselineEndDate,
         progressPercent: meta?.progress ?? 0,
+        isUnscheduled,
+        storyPoints: meta?.story_points ?? null,
         titleCache: issue.title,
         descriptionCache: (issue.description as string | null) ?? null,
         stateCache: issue.state,
         closedAt,
-        labelsCache: extractLabels(issue.labels),
+        labelsCache,
         assigneesCache: extractAssignees(issue.assignees),
         milestoneId: milestoneLocalId,
       },
@@ -255,11 +265,13 @@ export async function performInitialSync(
         baselineStartDate,
         baselineEndDate,
         progressPercent: meta?.progress ?? undefined,
+        isUnscheduled,
+        storyPoints: syncedStoryPoints(issue.description as string | null, meta),
         titleCache: issue.title,
         descriptionCache: (issue.description as string | null) ?? null,
         stateCache: issue.state,
         closedAt,
-        labelsCache: extractLabels(issue.labels),
+        labelsCache,
         assigneesCache: extractAssignees(issue.assignees),
         milestoneId: milestoneLocalId,
         lastSyncedAt: new Date(),
@@ -497,6 +509,11 @@ export async function applyIssueUpdate(
 
   const labelsCache = extractLabels(issue.labels);
   const assigneesCache = extractAssignees(issue.assignees);
+  const isUnscheduled = isUnscheduledStory({
+    labels: labelNames(labelsCache),
+    metaStartDate: meta?.start_date,
+    dueDate: issue.dueDate,
+  });
 
   // Siehe performInitialSync: offen ⇒ null, damit ein reopen die frühere
   // Schliessung nicht stehen lässt.
@@ -545,6 +562,8 @@ export async function applyIssueUpdate(
       baselineStartDate,
       baselineEndDate,
       progressPercent: meta?.progress ?? 0,
+      isUnscheduled,
+      storyPoints: meta?.story_points ?? null,
       titleCache: issue.title,
       descriptionCache: issue.description,
       stateCache: issue.state,
@@ -568,6 +587,8 @@ export async function applyIssueUpdate(
             baselineStartDate,
             baselineEndDate,
             progressPercent: meta?.progress ?? undefined,
+            isUnscheduled,
+            storyPoints: syncedStoryPoints(issue.description, meta),
             labelsCache,
             assigneesCache,
             milestoneId: milestoneLocalId,
