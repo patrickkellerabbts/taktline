@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, useTransition } from 'react';
+import { useEffect, useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   DndContext,
@@ -15,7 +15,7 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from '@dnd-kit/core';
-import { CalendarDays, Plus } from 'lucide-react';
+import { CalendarDays, Check, Plus, Square, X } from 'lucide-react';
 import { moveBoardCardAction } from '@/app/projects/[id]/board/actions';
 import { AssigneeAvatars } from '@/components/gantt/AssigneeAvatars';
 import { BOARD_COLUMNS, type BoardColumnId } from '@/lib/agile/board';
@@ -45,6 +45,8 @@ type Props = {
   people: BoardPerson[];
   projectLabels: BoardLabel[];
   initialStoryId?: string;
+  /** Lese-Link: nichts verschieben oder anlegen, Stories nur ansehen. */
+  readOnly?: boolean;
 };
 
 type DialogState = { mode: 'create'; column: BoardColumnId } | { mode: 'edit'; cardId: string } | null;
@@ -60,7 +62,14 @@ const collisionDetection: CollisionDetection = (args) => {
   return cardHits.length > 0 ? cardHits : hits;
 };
 
-export function BoardView({ projectId, cards: serverCards, people, projectLabels, initialStoryId }: Props) {
+export function BoardView({
+  projectId,
+  cards: serverCards,
+  people,
+  projectLabels,
+  initialStoryId,
+  readOnly = false,
+}: Props) {
   const router = useRouter();
   const [, startTransition] = useTransition();
   const [cards, setCards] = useState(serverCards);
@@ -132,14 +141,16 @@ export function BoardView({ projectId, cards: serverCards, people, projectLabels
   return (
     <div className="board">
       <div className="board__toolbar">
-        <button
-          type="button"
-          className="btn btn--primary btn--sm"
-          onClick={() => setDialog({ mode: 'create', column: 'backlog' })}
-        >
-          <Plus size={12} />
-          Neue User Story
-        </button>
+        {!readOnly && (
+          <button
+            type="button"
+            className="btn btn--primary btn--sm"
+            onClick={() => setDialog({ mode: 'create', column: 'backlog' })}
+          >
+            <Plus size={12} />
+            Neue User Story
+          </button>
+        )}
         <label className="board__toggle">
           <input
             type="checkbox"
@@ -172,14 +183,15 @@ export function BoardView({ projectId, cards: serverCards, people, projectLabels
                 id={column.id}
                 title={column.title}
                 cards={columnCards}
+                readOnly={readOnly}
                 onAdd={
-                  column.id === 'done'
+                  readOnly || column.id === 'done'
                     ? undefined
                     : () => setDialog({ mode: 'create', column: column.id })
                 }
                 onOpen={(card) => {
                   if (card.isStory) setDialog({ mode: 'edit', cardId: card.id });
-                  else router.push(`/projects/${projectId}/gantt?wp=${card.id}`);
+                  else if (!readOnly) router.push(`/projects/${projectId}/gantt?wp=${card.id}`);
                 }}
               />
             );
@@ -190,7 +202,11 @@ export function BoardView({ projectId, cards: serverCards, people, projectLabels
         </DragOverlay>
       </DndContext>
 
-      {dialog && (dialog.mode === 'create' || editedCard) && (
+      {readOnly && editedCard?.story && (
+        <StoryDetails card={editedCard} story={editedCard.story} onClose={() => setDialog(null)} />
+      )}
+
+      {!readOnly && dialog && (dialog.mode === 'create' || editedCard) && (
         <StoryDialog
           key={dialog.mode === 'edit' ? dialog.cardId : `new-${dialog.column}`}
           projectId={projectId}
@@ -213,12 +229,14 @@ function BoardColumn({
   id,
   title,
   cards,
+  readOnly,
   onAdd,
   onOpen,
 }: {
   id: BoardColumnId;
   title: string;
   cards: BoardCard[];
+  readOnly: boolean;
   onAdd?: () => void;
   onOpen: (card: BoardCard) => void;
 }) {
@@ -256,34 +274,54 @@ function BoardColumn({
       </header>
       <div className="board__cards">
         {cards.map((card) => (
-          <DraggableCard key={card.id} card={card} onOpen={() => onOpen(card)} />
+          <DraggableCard key={card.id} card={card} readOnly={readOnly} onOpen={() => onOpen(card)} />
         ))}
       </div>
     </section>
   );
 }
 
-function DraggableCard({ card, onOpen }: { card: BoardCard; onOpen: () => void }) {
+function DraggableCard({
+  card,
+  readOnly,
+  onOpen,
+}: {
+  card: BoardCard;
+  readOnly: boolean;
+  onOpen: () => void;
+}) {
+  // Auf Lese-Links führt nur eine Story irgendwohin (Details ansehen).
+  const clickable = !readOnly || card.isStory;
   const dndId = `${CARD_PREFIX}${card.id}`;
-  const { attributes, listeners, setNodeRef: setDragRef, isDragging } = useDraggable({ id: dndId });
-  const { isOver, setNodeRef: setDropRef } = useDroppable({ id: dndId });
+  const { attributes, listeners, setNodeRef: setDragRef, isDragging } = useDraggable({
+    id: dndId,
+    disabled: readOnly,
+  });
+  const { isOver, setNodeRef: setDropRef } = useDroppable({ id: dndId, disabled: readOnly });
   return (
     <div
       ref={(node) => {
         setDragRef(node);
         setDropRef(node);
       }}
-      {...listeners}
-      {...attributes}
-      onClick={onOpen}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          onOpen();
-        }
-      }}
+      {...(readOnly ? {} : listeners)}
+      {...(readOnly ? {} : attributes)}
+      {...(readOnly && clickable ? { role: 'button', tabIndex: 0 } : {})}
+      onClick={clickable ? onOpen : undefined}
+      onKeyDown={
+        clickable
+          ? (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onOpen();
+              }
+            }
+          : undefined
+      }
       className="board__card-slot"
       data-over={isOver && !isDragging ? '' : undefined}
+      data-readonly={readOnly ? '' : undefined}
+      data-clickable={readOnly && clickable ? '' : undefined}
       style={{ opacity: isDragging ? 0.35 : 1 }}
     >
       <CardBody card={card} />
@@ -333,5 +371,86 @@ function CardBody({ card, dragging = false }: { card: BoardCard; dragging?: bool
         {card.assignees.length > 0 && <AssigneeAvatars assignees={card.assignees} />}
       </div>
     </article>
+  );
+}
+
+function StoryDetails({
+  card,
+  story,
+  onClose,
+}: {
+  card: BoardCard;
+  story: StoryFields;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose();
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  return (
+    <div className="story-dialog__backdrop" onClick={onClose}>
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Story #${card.iid}`}
+        className="card story-dialog"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="card__hd">
+          <span style={{ fontWeight: 600, fontSize: 14 }}>
+            #{card.iid} {card.title}
+          </span>
+          <div style={{ flex: 1 }} />
+          <button
+            type="button"
+            className="btn btn--ghost btn--icon btn--sm"
+            onClick={onClose}
+            title="Schliessen"
+            aria-label="Schliessen"
+          >
+            <X size={12} />
+          </button>
+        </div>
+        <div className="card__bd story-dialog__body">
+          {story.role && (
+            <p className="story-details__sentence">
+              <strong>Als</strong> {story.role} <strong>möchte ich</strong> {story.goal}
+              {story.benefit && (
+                <>
+                  , <strong>damit</strong> {story.benefit}
+                </>
+              )}
+              .
+            </p>
+          )}
+          {story.criteria.length > 0 && (
+            <div>
+              <span className="label">Akzeptanzkriterien</span>
+              <ul className="story-details__criteria">
+                {story.criteria.map((c) => (
+                  <li key={c.text} style={{ display: 'flex', gap: 6, alignItems: 'baseline' }}>
+                    {c.done ? <Check size={12} aria-label="erfüllt" /> : <Square size={12} aria-label="offen" />}
+                    <span>{c.text}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {story.notes && (
+            <div>
+              <span className="label">Notizen</span>
+              <p className="story-details__notes">{story.notes}</p>
+            </div>
+          )}
+          {card.storyPoints !== null && (
+            <div className="share__hint">{card.storyPoints} Story Points</div>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }

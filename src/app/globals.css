@@ -861,3 +861,25 @@ button { font-family: inherit; }
 .story-dialog__chip:hover { border-color: var(--color-border-3); }
 .story-dialog__chip[aria-pressed="true"] { background: var(--color-selected); border-color: var(--color-accent); color: var(--color-accent-h); }
 .story-dialog__error { padding: 10px; background: #fbe9e7; border: 1px solid #f4c7c0; border-radius: var(--r-2); color: #b42318; font-size: var(--fs-sm); }
+
+/* ── Lese-Links ───────────────────────────────────────────── */
+.share__hint { margin: 0; font-size: var(--fs-xs); line-height: 1.5; color: var(--color-ink-3); }
+.share__created { padding: 10px; background: var(--color-accent-soft); border: 1px solid #f5cba0; border-radius: var(--r-2); }
+.share__url-row { display: flex; gap: 6px; }
+.share__url-row .input { flex: 1; min-width: 0; font-size: var(--fs-xs); }
+.share__list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--color-border); border-radius: var(--r-2); }
+.share__row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; opacity: 0.6; }
+.share__row[data-active] { opacity: 1; }
+.share__row + .share__row { border-top: 1px solid var(--color-border); }
+.share__row-title { font-size: var(--fs-sm); color: var(--color-ink); overflow-wrap: anywhere; }
+.share__row-meta { font-size: var(--fs-xs); color: var(--color-ink-3); }
+.share__project { margin-right: 10px; font-size: var(--fs-sm); color: var(--color-ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.share__chip { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; margin-right: 6px; }
+.share__invalid { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 16px; text-align: center; color: var(--color-ink-2); }
+.share__invalid h1 { margin: 6px 0 0; font-size: var(--fs-xl); color: var(--color-ink); }
+.share__invalid p { margin: 0; font-size: var(--fs-base); }
+.board__card-slot[data-readonly] { cursor: default; touch-action: auto; }
+.board__card-slot[data-clickable] { cursor: pointer; }
+.story-details__sentence { margin: 0; font-size: var(--fs-base); line-height: 1.5; color: var(--color-ink); }
+.story-details__criteria { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: var(--fs-sm); color: var(--color-ink-2); }
+.story-details__notes { margin: 0; font-family: var(--font-sans); font-size: var(--fs-sm); line-height: 1.5; color: var(--color-ink-2); white-space: pre-wrap; overflow-wrap: anywhere; }
