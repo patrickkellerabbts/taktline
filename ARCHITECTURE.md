@@ -190,4 +190,6 @@ auf genau ein Projekt: Gantt, Board, Sprints, Berichte und Ressourcen, aber kein
 
 Pro Person und Projekt ein Eintrag je Arbeitstag (`JournalEntry`). GitLab kennt dafür kein Feld, die Daten liegen also nur in der Taktline-DB. Alle Angemeldeten lesen, schreiben dürfen Personen nur ihre eigenen Einträge; das prüfen die Server Actions. Lese-Links zeigen Journale nicht.
 
-Agenten lesen über `GET /api/agent/journal?project=<pfad|id>`. Die Route bekommt den GitLab-Token des Agenten als Bearer-Token, prüft damit die Mitgliedschaft (mindestens Reporter) und speichert ihn nicht. Es gibt also keine eigene Token-Verwaltung, schreiben können Agenten dort nicht.
+Agenten lesen über `GET /api/agent/journal?project=<pfad|id>`. Die Route bekommt den GitLab-Token des Agenten als Bearer-Token, prüft damit die Mitgliedschaft (mindestens Reporter) und speichert ihn nicht. Es gibt also keine eigene Token-Verwaltung.
+
+Mit `POST` auf dieselbe Route legen Agenten **AI-Vorschläge** an (mindestens Developer). Ein Vorschlag ist ein normaler `JournalEntry` mit gesetztem `suggestedBy` (Username des Agent-Kontos) für eine Person, die Projektmitglied ist und sich schon einmal angemeldet hat. Sichtbar ist er nur für diese Person und zählt nicht zu ihren Stunden. Speichert sie ihn im Dialog, wird `suggestedBy` geleert und der Eintrag gehört ihr. Ein neuer Vorschlag ersetzt nur einen Vorschlag; einen bestätigten Eintrag überschreibt ein Agent nie (`409`).

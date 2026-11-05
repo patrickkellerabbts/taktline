@@ -930,3 +930,5 @@ a.sprint-row__title:hover { text-decoration: underline; }
 .journal__section-label { display: block; font-size: 11px; font-weight: 600; color: var(--color-ink-3); }
 .journal__section-text { white-space: pre-wrap; overflow-wrap: anywhere; }
 .journal__empty { padding: 32px 16px; text-align: center; font-size: 13px; color: var(--color-ink-3); }
+.journal__entry--suggested { border-style: dashed; border-color: var(--color-accent); }
+.journal__hint { padding: 8px 10px; border-radius: var(--r-2); background: var(--color-accent-soft); color: var(--color-ink); font-size: 12px; line-height: 1.45; }

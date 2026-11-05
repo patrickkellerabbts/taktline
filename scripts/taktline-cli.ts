@@ -56,8 +56,12 @@ Projekt:
   projects                    Projekte, in denen der Agent Mitglied ist
   link <gruppe/projekt|id>    ordnet das aktuelle Repo einem Projekt zu (${PROJECT_FILE})
 
-Arbeitsjournal (nur lesen, braucht TAKTLINE_URL):
+Arbeitsjournal (braucht TAKTLINE_URL):
   journal [--person <username>] [--from <datum>] [--to <datum>]
+  journal-suggest --person <username> --date <datum> --hours <h> --title <text>
+         [--technical <text>] [--organizational <text>] [--next <text>] [--dry-run]
+         legt einen AI-Vorschlag an, den die Person in der Web-App prüft und übernimmt.
+         Ein bestehender Vorschlag für den Tag wird ersetzt, ein eigener Eintrag nie.
 
 Lesen:
   list [--state opened|closed|all] [--column ${BOARD_COLUMNS.map((c) => c.id).join('|')}] [--sprint <nr>] [--stories]
@@ -278,6 +282,11 @@ async function main() {
       person: { type: 'string' },
       from: { type: 'string' },
       to: { type: 'string' },
+      date: { type: 'string' },
+      hours: { type: 'string' },
+      technical: { type: 'string' },
+      organizational: { type: 'string' },
+      next: { type: 'string' },
     },
   });
   const [command, ...args] = positionals;
@@ -361,7 +370,7 @@ async function main() {
       const body = (await response.json().catch(() => null)) as {
         error?: string;
         project?: string;
-        entries?: Array<{ date: string; hours: number; author: { username: string | null } }>;
+        entries?: Array<{ date: string; hours: number; suggestion?: boolean; author: { username: string | null } }>;
       } | null;
       if (!response.ok || !body?.entries) {
         fail(`Taktline antwortet mit HTTP ${response.status}: ${body?.error ?? 'unbekannter Fehler'}`);
@@ -374,9 +383,46 @@ async function main() {
       );
       print({
         project: body.project,
-        totalHours: entries.reduce((sum, e) => sum + e.hours, 0),
+        // Vorschläge sind unbestätigt und zählen nicht mit.
+        totalHours: entries.reduce((sum, e) => sum + (e.suggestion ? 0 : e.hours), 0),
+        suggestions: entries.filter((e) => e.suggestion).length,
         entries,
       });
+      return;
+    }
+
+    case 'journal-suggest': {
+      if (!taktlineUrl) fail(`TAKTLINE_URL fehlt (Umgebung oder ${CONFIG_FILE})`);
+      if (!values.person) fail('--person fehlt: Für wen ist der Vorschlag?');
+      if (values.date === undefined) fail('--date fehlt');
+      if (values.hours === undefined) fail('--hours fehlt');
+      if (!values.title?.trim()) fail('--title fehlt');
+      const hours = Number(values.hours.replace(',', '.'));
+      if (!Number.isFinite(hours) || hours <= 0 || hours > 24) fail('--hours muss zwischen 0 und 24 liegen');
+      const payload = {
+        project: String(project),
+        person: values.person,
+        date: dateValue('date', values.date),
+        hours,
+        title: values.title,
+        technical: values.technical ?? '',
+        organizational: values.organizational ?? '',
+        nextSteps: values.next ?? '',
+      };
+      if (dryRun) {
+        print({ project, dryRun: true, suggestion: payload });
+        return;
+      }
+      const response = await fetch(new URL('/api/agent/journal', taktlineUrl), {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const body = (await response.json().catch(() => null)) as { error?: string } | null;
+      if (!response.ok) {
+        fail(`Taktline antwortet mit HTTP ${response.status}: ${body?.error ?? 'unbekannter Fehler'}`);
+      }
+      print(body);
       return;
     }
 

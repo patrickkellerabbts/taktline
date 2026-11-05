@@ -28,7 +28,11 @@ export default async function JournalPage({ params }: Props) {
     void savePreferencesAction({ lastOpenedProjectId: id });
   }
 
-  const entries = await loadProjectJournal(id);
+  // AI-Vorschläge sieht nur die Person, für die sie gedacht sind, bis sie sie
+  // übernimmt.
+  const entries = (await loadProjectJournal(id)).filter(
+    (e) => !e.suggestedBy || e.author.id === session.user.id,
+  );
 
   return (
     <div className="app">
