@@ -67,6 +67,7 @@ So sieht es ohne Anmeldung aus, nur lesend und ohne Risiken:
 - **Kanban-Board** mit fünf Spalten; Spalten liegen als Labels in GitLab, „Done“ ist der Issue-Status
 - **User Stories** mit Akzeptanzkriterien und Story Points; ohne Datum erscheinen sie nur auf dem Board, nicht im Gantt
 - **Sprints:** planen, starten, abschliessen, Board nach Sprint filtern; Zuordnung als Label am Issue
+- **Arbeitsjournal:** pro Person und Tag Dauer, Kurztitel, technischer und organisatorischer Teil; Agenten können die Einträge auslesen
 - **Lese-Links** ohne GitLab-Konto: Gantt, Board, Sprints, Berichte und Ressourcen eines Projekts, ohne Risiken
 - **Webhook-Receiver** für Live-Updates aus GitLab (siehe [Deployment](#deployment))
 
@@ -300,6 +301,8 @@ Diese App ergänzt GitLab um Planungs-Daten, die GitLab CE nativ nicht kennt (St
 
 Format-Spec für direktes Editieren via `glab` CLI, REST-API oder KI-Agenten: siehe [`AGENTS.md`](./AGENTS.md).
 
+Agenten planen aus jedem Repo mit: `npm run skill:install` installiert den Claude-Code-Skill samt CLI global. Die Einrichtung steht in [`AGENTS.md`](./AGENTS.md#tools). Stories, Board-Spalten, Termine und Abhängigkeiten landen direkt in GitLab; Sprints anlegen, Risiken und Lese-Links gehen nur in der Web-App.
+
 ---
 
 ## Deployment
@@ -342,6 +345,21 @@ BUILD_SHA=$(git rev-parse --short HEAD) docker compose -f compose.prod.yml up -d
 Oder einfach `npm run prod:up` — das wrappt den BUILD_SHA-Aufruf bereits.
 
 Bei neuen Env-Variablen (z.B. nach einem Schema-Update) erst die `.env` ergänzen, dann obigen Befehl. Compose erkennt geänderte Env-Werte und re-created den Container.
+
+**Datenbank persistent machen und sichern:** Risiken, Sprint-Daten, Lese-Links und Arbeitsjournale liegen nur in der Taktline-DB. Mit einem Verzeichnis statt eines benannten Volumes übersteht sie auch ein versehentliches `docker compose down -v`, ein Backup ersetzt das aber nicht. In einer `compose.local.yml` auf dem Server (per `COMPOSE_FILE=compose.prod.yml:compose.local.yml` in der `.env` aktiv):
+
+```yaml
+services:
+  postgres:
+    volumes:
+      - /srv/taktline/postgres:/var/lib/postgresql/data
+```
+
+Sicherung im laufenden Betrieb, zum Beispiel täglich per Cron:
+
+```bash
+docker compose exec -T postgres pg_dump -U taktline taktline | gzip > /srv/taktline/backup/taktline-$(date +%F).sql.gz
+```
 
 Convenience-Scripts (führen die `compose.prod.yml`-Variante aus):
 

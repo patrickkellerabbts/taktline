@@ -917,3 +917,16 @@ a.sprint-row__title:hover { text-decoration: underline; }
 .board__sprint-select { width: auto; height: 24px; font-size: var(--fs-xs); }
 .board__sprint-info { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; font-size: var(--fs-xs); color: var(--color-ink-3); }
 .board__sprint-goal { color: var(--color-ink-2); }
+
+/* ── Arbeitsjournal ─────────────────────────────────────────────────────── */
+.journal { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 12px; overflow: auto; }
+.journal__people { display: flex; flex-wrap: wrap; gap: 6px; }
+.journal__person { display: inline-flex; align-items: center; gap: 6px; }
+.journal__list { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 860px; }
+.journal__entry-hd { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.journal__entry-title { font-weight: 600; font-size: 13px; min-width: 0; overflow-wrap: anywhere; }
+.journal__meta { font-size: 11px; color: var(--color-ink-3); }
+.journal__section { margin-top: 8px; font-size: 13px; line-height: 1.45; }
+.journal__section-label { display: block; font-size: 11px; font-weight: 600; color: var(--color-ink-3); }
+.journal__section-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.journal__empty { padding: 32px 16px; text-align: center; font-size: 13px; color: var(--color-ink-3); }
