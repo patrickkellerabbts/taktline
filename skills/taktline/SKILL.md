@@ -60,6 +60,7 @@ node ~/.claude/skills/taktline/taktline.mjs journal-suggest --person p.keller --
 
 - **Nur auf Wunsch** und nur für die Person, die gerade mit dir arbeitet. Frag nach ihrem Taktline-Benutzernamen, wenn er nicht bekannt ist.
 - **Nur Belegtes:** Schreib, was in der Sitzung tatsächlich passiert ist, etwa Commits, Änderungen und Entscheide. Erfinde keine Absprachen. Lass `--organizational` weg, wenn du davon nichts weisst. Der Eintrag gilt dann als unvollständig, und die Person ergänzt ihn.
+- **KI-Hilfe nicht erwähnen:** Dass das Team mit KI-Werkzeugen arbeitet, ist bekannt. Schreib nicht „mit Unterstützung von Claude Code“, „KI-gestützt“ oder Ähnliches in Titel oder Text. Beschreib die Arbeit selbst, so wie die Person sie notieren würde. Der Tag „AI-Vorschlag“ in der Web-App zeigt die Herkunft schon an.
 - **Stunden** nennt die Person. Schätz sie nicht aus der Sitzungsdauer, ohne zu fragen.
 - Zeig den Vorschlag vorher mit `--dry-run` und sag danach, dass er in Taktline unter „Journal“ auf Übernahme wartet.
 
