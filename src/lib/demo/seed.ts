@@ -226,7 +226,17 @@ const JOURNAL: Array<{
   technical: string | null;
   organizational: string | null;
   nextSteps: string | null;
+  suggestedBy?: string;
 }> = [
+  {
+    day: 0,
+    hours: 2.5,
+    title: 'Token-Refresh repariert',
+    technical: 'Refresh-Token wird jetzt vor Ablauf erneuert, der Fehler beim zweiten Login ist behoben. Test für den Ablauf ergänzt.',
+    organizational: null,
+    nextSteps: 'Review durch das Team.',
+    suggestedBy: 'taktline-agent',
+  },
   {
     day: -1,
     hours: 3.5,
@@ -418,6 +428,7 @@ export async function seedDemoData(prisma: PrismaClient): Promise<SeedResult> {
         technical: j.technical,
         organizational: j.organizational,
         nextSteps: j.nextSteps,
+        suggestedBy: j.suggestedBy ?? null,
       },
     });
   }

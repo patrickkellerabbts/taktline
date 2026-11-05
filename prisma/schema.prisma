@@ -153,6 +153,9 @@ model JournalEntry {
   technical      String?  @db.Text
   organizational String?  @db.Text
   nextSteps      String?  @db.Text
+  // Gesetzt, solange der Eintrag ein AI-Vorschlag ist: GitLab-Username des
+  // Agent-Kontos. Erst wenn die Person speichert, wird er zu ihrem Eintrag.
+  suggestedBy    String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 

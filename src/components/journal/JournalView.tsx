@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Pencil, Plus, Trash2, X } from 'lucide-react';
+import { Check, Pencil, Plus, Sparkles, Trash2, X } from 'lucide-react';
 import type { JournalEntryView } from '@/lib/journal';
 import {
   createJournalEntryAction,
@@ -44,16 +44,21 @@ export function JournalView({ projectId, entries, currentUserId }: Props) {
   const [, startTransition] = useTransition();
 
   const people = useMemo(() => {
-    const byId = new Map<string, { id: string; name: string; hours: number; open: number }>();
+    const byId = new Map<string, { id: string; name: string; hours: number; open: number; suggested: number }>();
     for (const entry of entries) {
       const row = byId.get(entry.author.id) ?? {
         id: entry.author.id,
         name: authorName(entry.author),
         hours: 0,
         open: 0,
+        suggested: 0,
       };
-      row.hours += entry.hours;
-      if (!entry.complete) row.open += 1;
+      // Vorschläge zählen erst, wenn die Person sie übernommen hat.
+      if (entry.suggestedBy) row.suggested += 1;
+      else {
+        row.hours += entry.hours;
+        if (!entry.complete) row.open += 1;
+      }
       byId.set(entry.author.id, row);
     }
     return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name));
@@ -62,7 +67,10 @@ export function JournalView({ projectId, entries, currentUserId }: Props) {
   const visible = person ? entries.filter((e) => e.author.id === person) : entries;
 
   function remove(entry: JournalEntryView) {
-    if (!window.confirm(`Eintrag vom ${formatDate(entry.date)} löschen? Das lässt sich nicht rückgängig machen.`)) return;
+    const question = entry.suggestedBy
+      ? `AI-Vorschlag vom ${formatDate(entry.date)} verwerfen?`
+      : `Eintrag vom ${formatDate(entry.date)} löschen? Das lässt sich nicht rückgängig machen.`;
+    if (!window.confirm(question)) return;
     setError(null);
     startTransition(async () => {
       const result = await deleteJournalEntryAction(entry.id);
@@ -106,6 +114,11 @@ export function JournalView({ projectId, entries, currentUserId }: Props) {
               {p.name}
               <span className="mono tabnum">{formatHours(p.hours)}</span>
               {p.open > 0 && <span>· {p.open} unvollständig</span>}
+              {p.suggested > 0 && (
+                <span>
+                  · {p.suggested} {p.suggested === 1 ? 'Vorschlag' : 'Vorschläge'}
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -156,16 +169,34 @@ function JournalCard({
   onEdit: () => void;
   onDelete: () => void;
 }) {
+  const suggested = entry.suggestedBy !== null;
   return (
-    <article className="card">
+    <article className={`card${suggested ? ' journal__entry--suggested' : ''}`}>
       <div className="card__bd">
         <div className="journal__entry-hd">
           <span className="mono tabnum" style={{ fontWeight: 600, fontSize: 12 }}>{formatDate(entry.date)}</span>
           <span className="journal__meta">{authorName(entry.author)}</span>
           <span className="journal__meta mono tabnum">{formatHours(entry.hours)}</span>
+          {suggested && (
+            <span className="chip chip--accent" title={`Vorgeschlagen von ${entry.suggestedBy}. Zählt erst, wenn du ihn übernimmst.`}>
+              <Sparkles size={10} />
+              AI-Vorschlag
+            </span>
+          )}
           {!entry.complete && <span className="chip">unvollständig</span>}
           <div style={{ flex: 1 }} />
-          {own && (
+          {own && suggested && (
+            <>
+              <button type="button" className="btn btn--primary btn--sm" onClick={onEdit}>
+                <Check size={12} />
+                Prüfen und übernehmen
+              </button>
+              <button type="button" className="btn btn--ghost btn--icon btn--sm" onClick={onDelete} title="Verwerfen" aria-label="Vorschlag verwerfen">
+                <Trash2 size={12} />
+              </button>
+            </>
+          )}
+          {own && !suggested && (
             <>
               <button type="button" className="btn btn--ghost btn--icon btn--sm" onClick={onEdit} title="Bearbeiten" aria-label="Eintrag bearbeiten">
                 <Pencil size={12} />
@@ -262,7 +293,8 @@ function JournalDialog({
     });
   }
 
-  const heading = entry ? 'Eintrag bearbeiten' : 'Neuer Eintrag';
+  const suggested = Boolean(entry?.suggestedBy);
+  const heading = suggested ? 'AI-Vorschlag prüfen' : entry ? 'Eintrag bearbeiten' : 'Neuer Eintrag';
 
   return (
     <div className="story-dialog__backdrop" onClick={requestClose}>
@@ -281,6 +313,12 @@ function JournalDialog({
           </button>
         </div>
         <div className="card__bd story-dialog__body">
+          {suggested && (
+            <div className="journal__hint">
+              Diesen Entwurf hat ein Agent ({entry?.suggestedBy}) erstellt. Prüfe und ergänze ihn: Erst
+              mit „Übernehmen“ wird er zu deinem Eintrag und zählt bei den Stunden.
+            </div>
+          )}
           <div className="story-dialog__row">
             <div className="story-dialog__field">
               <label className="label" htmlFor="journal-date">Datum*</label>
@@ -312,7 +350,7 @@ function JournalDialog({
         <div className="card__ft" style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
           <button type="button" className="btn btn--sm" onClick={requestClose} disabled={pending}>Abbrechen</button>
           <button type="button" className="btn btn--primary btn--sm" onClick={submit} disabled={!title.trim() || !hours.trim() || pending}>
-            {pending ? 'Speichere…' : entry ? 'Speichern' : 'Erstellen'}
+            {pending ? 'Speichere…' : suggested ? 'Übernehmen' : entry ? 'Speichern' : 'Erstellen'}
           </button>
         </div>
       </div>

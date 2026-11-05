@@ -67,7 +67,7 @@ So sieht es ohne Anmeldung aus, nur lesend und ohne Risiken:
 - **Kanban-Board** mit fünf Spalten; Spalten liegen als Labels in GitLab, „Done“ ist der Issue-Status
 - **User Stories** mit Akzeptanzkriterien und Story Points; ohne Datum erscheinen sie nur auf dem Board, nicht im Gantt
 - **Sprints:** planen, starten, abschliessen, Board nach Sprint filtern; Zuordnung als Label am Issue
-- **Arbeitsjournal:** pro Person und Tag Dauer, Kurztitel, technischer und organisatorischer Teil; Agenten können die Einträge auslesen
+- **Arbeitsjournal:** pro Person und Tag Dauer, Kurztitel, technischer und organisatorischer Teil; Agenten lesen die Einträge aus und schlagen neue vor, die die Person prüft und mit einem Klick übernimmt
 - **Lese-Links** ohne GitLab-Konto: Gantt, Board, Sprints, Berichte und Ressourcen eines Projekts, ohne Risiken
 - **Webhook-Receiver** für Live-Updates aus GitLab (siehe [Deployment](#deployment))
 

@@ -1,43 +1,13 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { z } from 'zod';
 import { Prisma } from '@prisma/client';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
 import { logger } from '@/lib/logger';
+import { JournalInputSchema, journalData, type JournalInput } from '@/lib/journal';
 
 type ActionResult = { ok: true } | { ok: false; error: string };
-
-const isRealDate = (value: string) => {
-  const parsed = new Date(`${value}T00:00:00Z`);
-  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
-};
-
-const JournalInputSchema = z.object({
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Bitte ein Datum wählen').refine(isRealDate, 'Bitte ein gültiges Datum wählen'),
-  hours: z
-    .number({ message: 'Bitte die Dauer in Stunden angeben' })
-    .gt(0, 'Die Dauer muss grösser als 0 sein')
-    .max(24, 'Ein Tag hat höchstens 24 Stunden'),
-  title: z.string().trim().min(1, 'Bitte einen Kurztitel angeben').max(120, 'Der Kurztitel ist zu lang'),
-  technical: z.string().trim().max(10_000, 'Der technische Teil ist zu lang'),
-  organizational: z.string().trim().max(10_000, 'Der organisatorische Teil ist zu lang'),
-  nextSteps: z.string().trim().max(10_000, 'Die nächsten Schritte sind zu lang'),
-});
-
-export type JournalInput = z.input<typeof JournalInputSchema>;
-
-function toData(input: z.output<typeof JournalInputSchema>) {
-  return {
-    date: new Date(input.date),
-    hours: input.hours,
-    title: input.title,
-    technical: input.technical || null,
-    organizational: input.organizational || null,
-    nextSteps: input.nextSteps || null,
-  };
-}
 
 const DUPLICATE_DAY = 'Für diesen Tag hast du schon einen Eintrag. Bitte den bestehenden ergänzen.';
 
@@ -56,7 +26,7 @@ export async function createJournalEntryAction(projectId: string, rawInput: Jour
 
   try {
     await prisma.journalEntry.create({
-      data: { projectId, userId: session.user.id, ...toData(parsed.data) },
+      data: { projectId, userId: session.user.id, ...journalData(parsed.data) },
     });
   } catch (err) {
     if (isUniqueViolation(err)) return { ok: false, error: DUPLICATE_DAY };
@@ -85,7 +55,11 @@ export async function updateJournalEntryAction(entryId: string, rawInput: Journa
   if (!entry) return { ok: false, error: 'Du kannst nur deine eigenen Einträge bearbeiten' };
 
   try {
-    await prisma.journalEntry.update({ where: { id: entry.id }, data: toData(parsed.data) });
+    // Speichern bestätigt einen AI-Vorschlag: Ab jetzt ist es ein normaler Eintrag.
+    await prisma.journalEntry.update({
+      where: { id: entry.id },
+      data: { ...journalData(parsed.data), suggestedBy: null },
+    });
   } catch (err) {
     if (isUniqueViolation(err)) return { ok: false, error: DUPLICATE_DAY };
     logger.error({ err: String(err), entryId }, 'Journal-Eintrag konnte nicht gespeichert werden');
