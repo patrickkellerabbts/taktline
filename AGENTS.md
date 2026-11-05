@@ -184,6 +184,17 @@ allocations:
 
 Ersetze `<group>/<project>` und `<host>` mit deiner GitLab-Instanz.
 
+### Mit der Taktline-CLI (empfohlen)
+
+`scripts/taktline-cli.ts` nutzt den Reference-Parser und hält die Regeln oben automatisch ein. `npm run skill:install` installiert sie zusammen mit dem Skill aus [`skills/taktline`](skills/taktline/SKILL.md) global für Claude Code, danach geht sie aus jedem Repo:
+
+```bash
+node ~/.claude/skills/taktline/taktline.mjs current
+node ~/.claude/skills/taktline/taktline.mjs move 42 doing --dry-run
+```
+
+Zugangsdaten stehen in `~/.config/taktline/agent.env` (`GITLAB_URL`, `GITLAB_TOKEN`). Das Zielprojekt kommt aus `GITLAB_PROJECT`, sonst aus `.taktline-project` im Repo (anlegen mit `link`), sonst aus einem Git-Remote auf dieser GitLab-Instanz. Ohne eindeutiges Projekt bricht die CLI ab.
+
 ### Mit `glab` CLI
 
 ```bash
