@@ -44,6 +44,7 @@ model User {
   ownedRisks          Risk[]         @relation("RiskOwner")
   riskHistoryEntries  RiskHistory[]
   createdShareLinks   ShareLink[]    @relation("ShareLinkCreatedBy")
+  journalEntries      JournalEntry[]
 }
 
 // Account speichert die OAuth-Tokens. access_token + refresh_token werden vor
@@ -105,6 +106,7 @@ model Project {
   risks        Risk[]
   shareLinks   ShareLink[]
   sprints      Sprint[]
+  journalEntries JournalEntry[]
 }
 
 enum SprintState {
@@ -136,6 +138,29 @@ model Sprint {
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@unique([projectId, number])
+}
+
+// Arbeitsjournal: pro Person und Projekt ein Eintrag je Arbeitstag. GitLab kennt
+// dafür kein Feld, die Einträge liegen also nur hier. Ein User mit Einträgen lässt
+// sich absichtlich nicht löschen, damit keine Abgabe-Daten mit verschwinden.
+model JournalEntry {
+  id             String   @id @default(uuid())
+  projectId      String
+  userId         String
+  date           DateTime @db.Date
+  hours          Float
+  title          String
+  technical      String?  @db.Text
+  organizational String?  @db.Text
+  nextSteps      String?  @db.Text
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id])
+
+  @@unique([projectId, userId, date])
+  @@index([projectId, date])
 }
 
 // Lese-Link für Personen ohne GitLab-Konto (siehe lib/share/links.ts). Es gibt

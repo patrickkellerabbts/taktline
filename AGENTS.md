@@ -193,7 +193,7 @@ node ~/.claude/skills/taktline/taktline.mjs current
 node ~/.claude/skills/taktline/taktline.mjs move 42 doing --dry-run
 ```
 
-Zugangsdaten stehen in `~/.config/taktline/agent.env` (`GITLAB_URL`, `GITLAB_TOKEN`). Das Zielprojekt kommt aus `GITLAB_PROJECT`, sonst aus `.taktline-project` im Repo (anlegen mit `link`), sonst aus einem Git-Remote auf dieser GitLab-Instanz. Ohne eindeutiges Projekt bricht die CLI ab.
+Zugangsdaten stehen in `~/.config/taktline/agent.env` (`GITLAB_URL`, `GITLAB_TOKEN`, für das Arbeitsjournal auch `TAKTLINE_URL`). Das Zielprojekt kommt aus `GITLAB_PROJECT`, sonst aus `.taktline-project` im Repo (anlegen mit `link`), sonst aus einem Git-Remote auf dieser GitLab-Instanz. Ohne eindeutiges Projekt bricht die CLI ab.
 
 ### Mit `glab` CLI
 

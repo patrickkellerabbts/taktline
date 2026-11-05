@@ -56,6 +56,9 @@ Projekt:
   projects                    Projekte, in denen der Agent Mitglied ist
   link <gruppe/projekt|id>    ordnet das aktuelle Repo einem Projekt zu (${PROJECT_FILE})
 
+Arbeitsjournal (nur lesen, braucht TAKTLINE_URL):
+  journal [--person <username>] [--from <datum>] [--to <datum>]
+
 Lesen:
   list [--state opened|closed|all] [--column ${BOARD_COLUMNS.map((c) => c.id).join('|')}] [--sprint <nr>] [--stories]
   show <iid>
@@ -98,12 +101,13 @@ function fail(message: string): never {
 function loadCredentials() {
   let file: Record<string, string | undefined> = {};
   if (existsSync(CONFIG_FILE)) file = parseEnv(readFileSync(CONFIG_FILE, 'utf8'));
+  const taktlineUrl = process.env.TAKTLINE_URL ?? file.TAKTLINE_URL;
   const host = process.env.GITLAB_URL ?? file.GITLAB_URL;
   const token = process.env.GITLAB_TOKEN ?? file.GITLAB_TOKEN;
   if (!host || !token) {
     fail(`GITLAB_URL und GITLAB_TOKEN fehlen (Umgebung oder ${CONFIG_FILE})`);
   }
-  return { host, token };
+  return { host, token, taktlineUrl };
 }
 
 function git(...args: string[]): string | null {
@@ -271,6 +275,9 @@ async function main() {
       lag: { type: 'string' },
       user: { type: 'string' },
       percent: { type: 'string' },
+      person: { type: 'string' },
+      from: { type: 'string' },
+      to: { type: 'string' },
     },
   });
   const [command, ...args] = positionals;
@@ -279,7 +286,7 @@ async function main() {
     return;
   }
 
-  const { host, token } = loadCredentials();
+  const { host, token, taktlineUrl } = loadCredentials();
   const client = new Gitlab({ host, token, camelize: false });
   const dryRun = values['dry-run'] === true;
   const print = (value: unknown) => console.log(JSON.stringify(value, null, 2));
@@ -343,6 +350,36 @@ async function main() {
   };
 
   switch (command) {
+    case 'journal': {
+      if (!taktlineUrl) fail(`TAKTLINE_URL fehlt (Umgebung oder ${CONFIG_FILE})`);
+      const from = values.from === undefined ? undefined : dateValue('from', values.from);
+      const to = values.to === undefined ? undefined : dateValue('to', values.to);
+      const url = new URL('/api/agent/journal', taktlineUrl);
+      url.searchParams.set('project', String(project));
+      // Gleicher Token wie für GitLab: Taktline prüft damit die Projektmitgliedschaft.
+      const response = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+      const body = (await response.json().catch(() => null)) as {
+        error?: string;
+        project?: string;
+        entries?: Array<{ date: string; hours: number; author: { username: string | null } }>;
+      } | null;
+      if (!response.ok || !body?.entries) {
+        fail(`Taktline antwortet mit HTTP ${response.status}: ${body?.error ?? 'unbekannter Fehler'}`);
+      }
+      const entries = body.entries.filter(
+        (e) =>
+          (values.person === undefined || e.author.username === values.person) &&
+          (from === undefined || e.date >= from) &&
+          (to === undefined || e.date <= to),
+      );
+      print({
+        project: body.project,
+        totalHours: entries.reduce((sum, e) => sum + e.hours, 0),
+        entries,
+      });
+      return;
+    }
+
     case 'list': {
       const state = values.state ?? 'opened';
       if (state !== 'opened' && state !== 'closed' && state !== 'all') {

@@ -173,7 +173,7 @@ prisma/
 ## Lese-Links
 
 Personen ohne GitLab-Konto (z.B. Dozenten) bekommen über `/share/<token>` Lesezugriff
-auf genau ein Projekt: Gantt, Board, Sprints, Berichte und Ressourcen, aber keine Risiken.
+auf genau ein Projekt: Gantt, Board, Sprints, Berichte und Ressourcen, aber keine Risiken und keine Arbeitsjournale.
 
 - **Keine Session:** Gäste sind keine Benutzer. Alle Server Actions verlangen `auth()`
   und lehnen sie deshalb von selbst ab. Der Nur-Lese-Modus der Ansichten (`readOnly`)
@@ -185,3 +185,9 @@ auf genau ein Projekt: Gantt, Board, Sprints, Berichte und Ressourcen, aber kein
 - **Keine GitLab-URLs:** Merge Requests und Avatare gehen nicht an Gäste.
 - **Erreichbarkeit:** Der Link wird aus `AUTH_URL` gebaut. Gäste brauchen Zugriff auf die
   Taktline-Instanz selbst, das GitLab muss für sie nicht erreichbar sein.
+
+## Arbeitsjournal
+
+Pro Person und Projekt ein Eintrag je Arbeitstag (`JournalEntry`). GitLab kennt dafür kein Feld, die Daten liegen also nur in der Taktline-DB. Alle Angemeldeten lesen, schreiben dürfen Personen nur ihre eigenen Einträge; das prüfen die Server Actions. Lese-Links zeigen Journale nicht.
+
+Agenten lesen über `GET /api/agent/journal?project=<pfad|id>`. Die Route bekommt den GitLab-Token des Agenten als Bearer-Token, prüft damit die Mitgliedschaft (mindestens Reporter) und speichert ihn nicht. Es gibt also keine eigene Token-Verwaltung, schreiben können Agenten dort nicht.

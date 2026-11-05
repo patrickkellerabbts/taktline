@@ -219,6 +219,32 @@ export type SeedResult = {
  * alle Tabellen. Nur gegen eine dedizierte Demo-Datenbank aufrufen, niemals
  * gegen die Produktiv- oder Dev-DB.
  */
+const JOURNAL: Array<{
+  day: number;
+  hours: number;
+  title: string;
+  technical: string | null;
+  organizational: string | null;
+  nextSteps: string | null;
+}> = [
+  {
+    day: -1,
+    hours: 3.5,
+    title: 'Login-Flow fertiggestellt',
+    technical: 'OAuth-Anmeldung umgesetzt und mit zwei Testkonten geprüft. Der Token-Refresh läuft noch nicht zuverlässig.',
+    organizational: 'Mit dem Team die Abnahmekriterien für den Login abgestimmt.',
+    nextSteps: 'Token-Refresh beheben.',
+  },
+  {
+    day: -3,
+    hours: 2,
+    title: 'Datenmodell entworfen',
+    technical: 'Erste Migration erstellt und das Modell für Beiträge und Rollen festgelegt.',
+    organizational: null,
+    nextSteps: null,
+  },
+];
+
 export async function seedDemoData(prisma: PrismaClient): Promise<SeedResult> {
   // Alles Bestehende wegräumen. Die Demo-Session wird weiter unten mit
   // demselben Token neu angelegt — bereits geöffnete Browser-Tabs bleiben
@@ -377,6 +403,21 @@ export async function seedDemoData(prisma: PrismaClient): Promise<SeedResult> {
         completedCount: s.state === 'closed' ? done.length : null,
         completedPoints:
           s.state === 'closed' ? done.reduce((sum, w) => sum + (w.story?.points ?? 0), 0) : null,
+      },
+    });
+  }
+
+  for (const j of JOURNAL) {
+    await prisma.journalEntry.create({
+      data: {
+        projectId: project.id,
+        userId: demoUserId,
+        date: addDays(seedDay, j.day),
+        hours: j.hours,
+        title: j.title,
+        technical: j.technical,
+        organizational: j.organizational,
+        nextSteps: j.nextSteps,
       },
     });
   }
