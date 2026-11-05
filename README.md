@@ -335,7 +335,16 @@ Der Container-Entrypoint führt automatisch `prisma migrate deploy` aus, bevor d
 
 Der `BUILD_SHA` ist optional — fehlt er, zeigt die /about-Seite "unknown". Das `.git`-Verzeichnis ist in `.dockerignore` (kein Bloat im Build-Context), darum reichen wir den SHA als Build-Arg vom Host durch.
 
-**Update-Workflow** (für Code-Änderungen ohne Schema-Änderung):
+**Update per Skript** (auf dem Server im Taktline-Verzeichnis):
+
+```bash
+./scripts/deploy.sh            # holt main, baut, sichert die DB, startet und prüft
+./scripts/deploy.sh --prune    # zusätzlich unbenannte Docker-Images löschen
+```
+
+Das Skript bricht ab, bevor es etwas umstellt, wenn versionierte Dateien lokal geändert sind, der Build scheitert oder das Backup defekt ist. Antwortet Taktline nach dem Start nicht, zeigt es die Logs und die Befehle zum Zurückgehen. Backups landen in `BACKUP_DIR` (Standard `/srv/taktline/backup`), die letzten zehn bleiben. `--prune` räumt alle unbenannten Images auf dem Host auf, nicht nur die von Taktline.
+
+**Update-Workflow von Hand** (für Code-Änderungen ohne Schema-Änderung):
 
 ```bash
 git pull
