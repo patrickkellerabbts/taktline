@@ -31,7 +31,7 @@ export type GitlabIssuePayload = {
   object_kind: 'issue';
   event_type?: string;
   user: { id: number; username: string };
-  project: { id: number };
+  project: { id: number; path_with_namespace?: string };
   object_attributes: {
     id: number;
     iid: number;
@@ -44,6 +44,10 @@ export type GitlabIssuePayload = {
     updated_at: string;
     closed_at?: string | null;
     milestone_id?: number | null;
+    /** Work-Item-Typ: "Issue", "Task", "Incident". */
+    type?: string;
+    time_estimate?: number;
+    total_time_spent?: number;
   };
   /** Top-level Labels mit Farben (besser als object_attributes.labels) */
   labels?: Array<{

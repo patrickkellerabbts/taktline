@@ -89,7 +89,7 @@ type WpSeed = {
   baseline?: [string, string];
   milestone?: string;
   /** User Story: Text landet in der Description, Punkte im gantt-meta-Block. */
-  story?: { role: string; goal: string; benefit: string; criteria: string[]; points: number };
+  story?: { role: string; goal: string; benefit: string; criteria: string[]; points?: number };
   /** Story ohne Datum: nur auf dem Board, start/end sind dann der Sync-Fallback. */
   unscheduled?: boolean;
 };
@@ -138,6 +138,8 @@ const STORIES: WpSeed[] = [
   { key: 's3', iid: 43, title: 'Beiträge im Voraus terminieren', start: '2026-11-02', end: '2026-11-13', progress: 0, labels: [STORY_LABEL, 'board::doing', 'content'], assignees: [101], story: { role: 'Redakteurin', goal: 'Beiträge im Voraus terminieren', benefit: 'sie auch im Urlaub pünktlich erscheinen', criteria: ['Datum und Uhrzeit wählbar', 'Vorschau vor der Veröffentlichung'], points: 8 } },
   { key: 's5', iid: 45, title: 'Standorte auf einer Karte anzeigen', start: '2026-10-05', end: '2026-10-16', progress: 100, state: 'closed', labels: [STORY_LABEL, 'frontend'], assignees: [105], story: { role: 'Besucherin', goal: 'Standorte auf einer Karte sehen', benefit: 'ich den nächsten Standort schnell finde', criteria: ['Karte lädt ohne Cookies von Dritten'], points: 5 } },
   { key: 's6', iid: 46, title: 'Downloads nach Sprache filtern', start: '2026-10-26', end: '2026-11-09', progress: 0, unscheduled: true, labels: [STORY_LABEL, 'frontend'], story: { role: 'Besucher', goal: 'Downloads nach Sprache filtern', benefit: 'ich nur passende Dokumente sehe', criteria: ['Filter merkt sich die Auswahl'], points: 3 } },
+  { key: 's7', iid: 47, title: 'Merkliste für Produkte', start: '2026-10-26', end: '2026-11-09', progress: 0, unscheduled: true, labels: [STORY_LABEL, 'frontend'], story: { role: 'Besucherin', goal: 'Produkte auf eine Merkliste setzen', benefit: 'ich sie später vergleichen kann', criteria: ['Merkliste bleibt ohne Login im Browser erhalten', 'Maximal 20 Produkte', 'Teilen per Link'] } },
+  { key: 's8', iid: 48, title: 'Suche mit Tippfehler-Toleranz', start: '2026-10-26', end: '2026-11-09', progress: 0, unscheduled: true, labels: [STORY_LABEL, 'backend'], story: { role: 'Besucher', goal: 'auch mit Tippfehlern passende Produkte finden', benefit: 'ich nicht an der Schreibweise scheitere', criteria: ['„Fiter“ findet „Filter“', 'Antwort unter 300 ms'] } },
   { key: 's4', iid: 44, title: 'Kontaktanfragen im Backend einsehen', start: '2026-10-26', end: '2026-11-09', progress: 0, unscheduled: true, labels: [STORY_LABEL, 'board::review', 'backend'], assignees: [102], story: { role: 'Support-Mitarbeiter', goal: 'Kontaktanfragen im Backend einsehen', benefit: 'keine Anfrage verloren geht', criteria: ['Liste nach Eingangsdatum sortiert'], points: 2 } },
 ];
 
@@ -147,6 +149,20 @@ const SPRINTS = [
   { number: 2, name: 'Sprint 2', goal: 'Redaktion kann Inhalte selbst pflegen', state: 'active', from: -5, to: 8 },
   { number: 3, name: 'Sprint 3', goal: null, state: 'planned', from: 9, to: 22 },
 ] as const;
+
+// Tasks unter den Stories des aktiven Sprints. `closed` = Tag des Schliessens
+// relativ zum Seed, damit der Sprint-Burndown eine echte Kurve zeigt.
+const TASKS: Array<{ story: string; iid: number; title: string; hours: number; assignee?: number; column?: 'doing' | 'review'; closed?: number }> = [
+  { story: 's3', iid: 60, title: 'Datenmodell für Veröffentlichungstermine', hours: 3, assignee: 101, closed: -4 },
+  { story: 's3', iid: 61, title: 'Datums- und Zeitwähler im Editor', hours: 5, assignee: 101, closed: -2 },
+  { story: 's3', iid: 62, title: 'Cronjob veröffentlicht fällige Beiträge', hours: 6, assignee: 104, column: 'doing' },
+  { story: 's3', iid: 63, title: 'Vorschau-Ansicht vor Veröffentlichung', hours: 4, assignee: 103 },
+  { story: 's4', iid: 64, title: 'API-Endpunkt Kontaktanfragen', hours: 3, assignee: 102, closed: -3 },
+  { story: 's4', iid: 65, title: 'Liste im Backend mit Sortierung', hours: 4, assignee: 102, column: 'review' },
+  { story: 's2', iid: 66, title: 'Anmeldeformular im Footer', hours: 2, assignee: 105, closed: -1 },
+  { story: 's2', iid: 67, title: 'Double-Opt-in-Mail versenden', hours: 4, assignee: 105 },
+  { story: 's2', iid: 68, title: 'Abmeldelink und Bestätigungsseite', hours: 3 },
+];
 
 const SPRINT_OF: Record<string, number> = { s5: 1, p2a: 1, p2b: 1, s2: 2, s3: 2, s4: 2, p3b: 2, p3c: 2, s6: 3 };
 
@@ -308,6 +324,15 @@ export async function seedDemoData(prisma: PrismaClient): Promise<SeedResult> {
       nameCache: 'beispiel/website-relaunch',
       activatedByUserId: demoUserId,
       lastFullSyncAt: new Date(TODAY.getTime() - 4 * 60 * 1000),
+      productGoal:
+        'Besucherinnen finden in höchstens drei Klicks das passende Produkt und den nächsten Standort, auch auf dem Handy.',
+      definitionOfDone: [
+        'Code von einer zweiten Person reviewt',
+        'Automatische Tests grün',
+        'Auf Staging von der Product Owner abgenommen',
+        'Barrierefreiheit geprüft (Tastatur, Kontrast)',
+      ],
+      wipLimits: { doing: 3, review: 2 },
       labels: { create: LABELS.map((l) => ({ name: l.name, color: l.color, textColor: '#ffffff' })) },
     },
   });
@@ -365,7 +390,7 @@ export async function seedDemoData(prisma: PrismaClient): Promise<SeedResult> {
               }),
               {
                 ...(w.unscheduled ? {} : { start_date: w.start }),
-                story_points: w.story.points,
+                ...(w.story.points === undefined ? {} : { story_points: w.story.points }),
               },
             )
           : undefined,
@@ -417,6 +442,91 @@ export async function seedDemoData(prisma: PrismaClient): Promise<SeedResult> {
     });
   }
 
+  for (const t of TASKS) {
+    const story = WPS.concat(STORIES).find((w) => w.key === t.story)!;
+    await prisma.workPackage.create({
+      data: {
+        projectId: project.id,
+        gitlabIssueIid: t.iid,
+        titleCache: t.title,
+        stateCache: t.closed === undefined ? 'opened' : 'closed',
+        closedAt: t.closed === undefined ? null : addDays(seedDay, t.closed),
+        startDate: d(story.start),
+        endDate: d(story.end),
+        isUnscheduled: true,
+        isTask: true,
+        storyId: wpIds.get(t.story)!,
+        estimateSeconds: t.hours * 3600,
+        labelsCache: t.column ? [{ name: `board::${t.column}` }] : [],
+        assigneesCache: t.assignee ? [assignee(t.assignee)] : [],
+      },
+    });
+  }
+
+  // Review und Retro von Sprint 1. Eine Massnahme wurde ein Issue in Sprint 2
+  // und ist erledigt, damit die nächste Retro den Kreis zeigt.
+  const sprint1 = await prisma.sprint.findUniqueOrThrow({
+    where: { projectId_number: { projectId: project.id, number: 1 } },
+    select: { id: true },
+  });
+  await prisma.sprint.update({
+    where: { id: sprint1.id },
+    data: {
+      goalOutcome: 'partly',
+      reviewNotes:
+        'Startseite und Kartenansicht gezeigt. Die Product Owner wünscht grössere Teaser-Bilder; das Newsletter-Formular wurde vorgezogen. Barrierefreiheit der Karte ist noch offen und kommt ins Backlog.',
+    },
+  });
+  await prisma.workPackage.create({
+    data: {
+      projectId: project.id,
+      gitlabIssueIid: 70,
+      titleCache: 'Daily Scrum auf 15 Minuten begrenzen',
+      descriptionCache: 'Massnahme aus der Retrospektive von Sprint 1.',
+      stateCache: 'closed',
+      closedAt: addDays(seedDay, -3),
+      startDate: addDays(seedDay, -5),
+      endDate: addDays(seedDay, 8),
+      labelsCache: [{ name: 'retro' }, { name: 'sprint::2' }],
+      assigneesCache: [],
+    },
+  });
+  const RETRO: Array<{ kind: string; text: string; by: number; votes: number[]; issue?: number }> = [
+    { kind: 'good', text: 'Pairing bei der Kartenansicht hat viel Zeit gespart', by: 105, votes: [101, 103] },
+    { kind: 'good', text: 'Review mit der Product Owner direkt auf Staging', by: 101, votes: [102] },
+    { kind: 'improve', text: 'Daily Scrum dauert oft 30 Minuten', by: 102, votes: [101, 104, 105] },
+    { kind: 'improve', text: 'Stories kamen ohne Akzeptanzkriterien in den Sprint', by: 103, votes: [102, 103] },
+    { kind: 'action', text: 'Daily Scrum mit Timer, höchstens 15 Minuten', by: 102, votes: [104], issue: 70 },
+    { kind: 'action', text: 'Story ohne Akzeptanzkriterien kommt nicht ins Sprint Planning', by: 103, votes: [] },
+  ];
+  for (const r of RETRO) {
+    await prisma.sprintRetroItem.create({
+      data: {
+        sprintId: sprint1.id,
+        kind: r.kind,
+        text: r.text,
+        authorId: users.get(r.by),
+        issueIid: r.issue ?? null,
+        votes: { create: r.votes.map((v) => ({ userId: users.get(v)! })) },
+      },
+    });
+  }
+
+  // Cumulative Flow: erfundener, aber plausibler Verlauf der letzten 20 Tage.
+  // Den heutigen Stand zählt die App selbst, sobald jemand das Board öffnet.
+  for (let i = 20; i >= 1; i--) {
+    const t = 20 - i; // 0 … 19
+    // Endet nahe am echten Stand des Demo-Boards, damit der heutige Tag anschliesst.
+    const done = 3 + Math.round(t * 0.32);
+    const review = 1 + (t % 4 === 3 ? 1 : 0);
+    const doing = 3 + Math.round(Math.sin(t / 3) + 1) + (t > 12 ? 1 : 0);
+    const todo = 2 + (t % 5 === 0 ? 1 : 0);
+    const backlog = 20 - Math.round(t * 0.3);
+    await prisma.boardSnapshot.create({
+      data: { projectId: project.id, date: addDays(seedDay, -i), counts: { backlog, todo, doing, review, done } },
+    });
+  }
+
   for (const j of JOURNAL) {
     await prisma.journalEntry.create({
       data: {
@@ -430,6 +540,17 @@ export async function seedDemoData(prisma: PrismaClient): Promise<SeedResult> {
         nextSteps: j.nextSteps,
         suggestedBy: j.suggestedBy ?? null,
       },
+    });
+  }
+
+  // Planning Poker: Bei der Merkliste haben drei schon verdeckt gelegt, Anna
+  // (die Demo-Person) noch nicht.
+  const pokerRound = await prisma.estimationRound.create({
+    data: { projectId: project.id, workPackageId: wpIds.get('s7')!, number: 1, createdByUserId: users.get(102) },
+  });
+  for (const [gitlabUserId, value] of [[102, '5'], [103, '8'], [104, '13']] as const) {
+    await prisma.estimationVote.create({
+      data: { roundId: pokerRound.id, userId: users.get(gitlabUserId)!, value },
     });
   }
 

@@ -273,6 +273,18 @@ function buildDemoClient() {
       async allRelatedMergeRequests() {
         return [];
       },
+
+      // Tasks: Die globale ID folgt demselben Schema wie bei create.
+      async show(iid: number) {
+        return { iid, id: 900_000 + iid };
+      },
+      async addTimeEstimate(_gitlabProjectId: number, _iid: number, duration: string) {
+        const minutes = Number(duration.replace(/m$/, ''));
+        return { time_estimate: Number.isFinite(minutes) ? minutes * 60 : 0, total_time_spent: 0 };
+      },
+      async resetTimeEstimate() {
+        return { time_estimate: 0, total_time_spent: 0 };
+      },
     },
 
     ProjectMembers: {

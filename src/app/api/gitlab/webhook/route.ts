@@ -7,9 +7,12 @@ import { isSelfPush } from '@/lib/gitlab/self-push';
 import {
   applyIssueUpdate,
   syncWorkPackageMergeRequests,
+  taskFields,
   type IssueAction,
 } from '@/lib/gitlab/sync';
-import { getGitlabClientForUser } from '@/lib/gitlab/client';
+import { getGitlabClientForUser, getGitlabGraphqlForUser } from '@/lib/gitlab/client';
+import { fetchTaskParent } from '@/lib/gitlab/tasks';
+import { recordBoardSnapshot } from '@/lib/agile/flow';
 import { syncSummaryLabels } from '@/lib/gitlab/summary-label';
 import { GitlabTokenExpiredError } from '@/lib/auth/encrypted-adapter';
 
@@ -101,6 +104,21 @@ async function handleIssueEvent(
       action = 'update';
   }
 
+  // Bei Tasks die Story nachschlagen: Der Webhook enthält sie nicht. Vor der
+  // Transaktion, weil es ein GitLab-Roundtrip ist. Scheitert es, bleibt die
+  // bisherige Zuordnung (der Reconciliation-Job holt sie nach).
+  const task = taskFields(attrs);
+  let storyIid: number | null | undefined;
+  if (task.isTask && action !== 'state-only') {
+    try {
+      const graphql = await getGitlabGraphqlForUser(activatedByUserId);
+      const path = payload.project?.path_with_namespace;
+      if (graphql && path) storyIid = await fetchTaskParent(graphql, path, iid);
+    } catch (err) {
+      logger.warn({ err: err instanceof Error ? err.message : String(err), iid }, 'Story eines Tasks nicht lesbar');
+    }
+  }
+
   try {
     let affectedParents: string[] = [];
     let updatedWpId: string | null = null;
@@ -120,6 +138,8 @@ async function handleIssueEvent(
             labels: payload.labels,
             assignees: payload.assignees,
             milestoneId: attrs.milestone_id ?? null,
+            task,
+            storyIid,
           },
           action,
         );
@@ -166,6 +186,7 @@ async function handleIssueEvent(
       }
     }
 
+    await recordBoardSnapshot(projectInternalId);
     revalidatePath(`/projects/${projectInternalId}/gantt`);
     logger.info(
       { iid, action: attrs.action, state: attrs.state, projectInternalId },

@@ -24,6 +24,8 @@ import {
   type BoardColumnId,
 } from '@/lib/agile/board';
 import { buildStoryDescription, mergeCriteria, parseStoryDescription } from '@/lib/agile/story';
+import { recordBoardSnapshot } from '@/lib/agile/flow';
+import { parseWipLimits, WIP_COLUMNS } from '@/lib/agile/flow-shared';
 
 type ActionResult<T = object> =
   | ({ ok: true } & T)
@@ -171,6 +173,7 @@ export async function moveBoardCardAction(
       }
     });
 
+    if (from !== target) await recordBoardSnapshot(projectId);
     revalidateProject(projectId);
     return { ok: true };
   } catch (err) {
@@ -454,4 +457,27 @@ export async function updateStoryAction(
   } catch (err) {
     return failure(err, { workPackageId }, 'Story konnte nicht gespeichert werden');
   }
+}
+
+// ─── WIP-Limits ──────────────────────────────────────────────────────────────
+
+export async function updateWipLimitAction(
+  projectId: string,
+  column: BoardColumnId,
+  limit: number | null,
+): Promise<ActionResult> {
+  const session = await auth();
+  if (!session?.user?.id) return { ok: false, error: 'Nicht angemeldet' };
+  if (!WIP_COLUMNS.includes(column)) return { ok: false, error: 'Für diese Spalte gibt es kein Limit' };
+  if (limit !== null && (!Number.isInteger(limit) || limit < 1 || limit > 99)) {
+    return { ok: false, error: 'Das Limit muss eine ganze Zahl zwischen 1 und 99 sein' };
+  }
+  const project = await prisma.project.findUnique({ where: { id: projectId }, select: { wipLimits: true } });
+  if (!project) return { ok: false, error: 'Projekt nicht gefunden' };
+  const limits = parseWipLimits(project.wipLimits);
+  if (limit === null) delete limits[column];
+  else limits[column] = limit;
+  await prisma.project.update({ where: { id: projectId }, data: { wipLimits: limits } });
+  revalidateProject(projectId);
+  return { ok: true };
 }

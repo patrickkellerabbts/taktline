@@ -8,6 +8,9 @@ import { BoardView } from '@/components/board/BoardView';
 import { ShareButton } from '@/components/share/ShareButton';
 import { isReservedLabel } from '@/lib/agile/board';
 import { loadBoardPeople, loadProjectBoard } from '@/lib/agile/load-board';
+import { loadCommitments } from '@/lib/agile/commitments';
+import { loadFlow, recordBoardSnapshot } from '@/lib/agile/flow';
+import { parseWipLimits } from '@/lib/agile/flow-shared';
 
 type Props = {
   params: Promise<{ id: string }>;
@@ -33,6 +36,13 @@ export default async function BoardPage({ params, searchParams }: Props) {
   }
 
   const people = await loadBoardPeople(project.cards);
+  const commitments = await loadCommitments(project.id);
+  // Den heutigen Stand festhalten, bevor das Diagramm ihn liest.
+  await recordBoardSnapshot(project.id);
+  const [flow, wipRow] = await Promise.all([
+    loadFlow(project.id),
+    prisma.project.findUnique({ where: { id: project.id }, select: { wipLimits: true } }),
+  ]);
 
   return (
     <div className="app">
@@ -51,6 +61,9 @@ export default async function BoardPage({ params, searchParams }: Props) {
             .filter((l) => !isReservedLabel(l.name))
             .map((l) => ({ name: l.name, color: l.color ?? undefined }))}
           initialStoryId={initialStoryId}
+          definitionOfDone={commitments?.definitionOfDone ?? []}
+          wipLimits={parseWipLimits(wipRow?.wipLimits)}
+          flow={flow}
         />
       </div>
     </div>

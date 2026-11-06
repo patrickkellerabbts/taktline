@@ -5,6 +5,7 @@ import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
 import { getGitlabClientForUser } from '@/lib/gitlab/client';
 import { performInitialSync, syncAllWorkPackageMergeRequests } from '@/lib/gitlab/sync';
+import { loadTaskParentsForUser } from '@/lib/gitlab/tasks';
 import { logger } from '@/lib/logger';
 import { GitlabTokenExpiredError } from '@/lib/auth/encrypted-adapter';
 import { syncSummaryLabels } from '@/lib/gitlab/summary-label';
@@ -30,7 +31,7 @@ export async function resyncProjectAction(projectId: string): Promise<ResyncResu
 
   const project = await prisma.project.findUnique({
     where: { id: projectId },
-    select: { id: true, gitlabProjectId: true },
+    select: { id: true, gitlabProjectId: true, nameCache: true },
   });
   if (!project) return { ok: false, error: 'Projekt nicht gefunden' };
 
@@ -46,6 +47,7 @@ export async function resyncProjectAction(projectId: string): Promise<ResyncResu
     // sonst crashed die Server-Action und der User sieht ein Error-Overlay
     // statt einer freundlichen Meldung.
     const client = await getGitlabClientForUser(session.user.id);
+    const taskParents = await loadTaskParentsForUser(session.user.id, project.nameCache);
 
     const sync = await prisma.$transaction(
       async (tx) => {
@@ -54,6 +56,7 @@ export async function resyncProjectAction(projectId: string): Promise<ResyncResu
           client,
           project.id,
           project.gitlabProjectId,
+          { taskParents },
         );
         await tx.project.update({
           where: { id: project.id },

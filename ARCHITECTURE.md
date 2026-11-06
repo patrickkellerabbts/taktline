@@ -186,6 +186,46 @@ auf genau ein Projekt: Gantt, Board, Sprints, Berichte und Ressourcen, aber kein
 - **Erreichbarkeit:** Der Link wird aus `AUTH_URL` gebaut. Gäste brauchen Zugriff auf die
   Taktline-Instanz selbst, das GitLab muss für sie nicht erreichbar sein.
 
+## Scrum-Zusagen und Velocity
+
+Der Scrum Guide 2020 kennt drei Zusagen: Product Goal, Sprint Goal und Definition of Done. Das Sprint Goal steht am `Sprint`, die anderen beiden am `Project` (`productGoal`, `definitionOfDone` als JSON-Liste). GitLab kennt beides nicht, deshalb nur in der Taktline-DB.
+
+- **DoD beim Abschliessen:** Zieht jemand eine Story auf dem Board nach Done, fragt ein Dialog die DoD und die Akzeptanzkriterien ab. Offene Punkte warnen, sperren aber nicht. Ob etwas fertig ist, entscheidet das Team, nicht das Werkzeug.
+- **Velocity:** erledigte Story Points pro abgeschlossenem Sprint, eingefroren beim Abschluss (`completedPoints`). Der Durchschnitt der letzten drei Sprints ist der Richtwert; plant ein offener Sprint mehr als 20 % darüber, zeigt die Sprints-Seite eine Warnung.
+- `lib/agile/velocity.ts` ist frei von Server-Abhängigkeiten, weil die Browser-Komponente es importiert; das Laden steckt in `lib/agile/commitments.ts`.
+
+## Tasks unter Stories
+
+Native GitLab-Tasks (Work Item Type „Task“) statt eigener Datenhaltung, damit sie auch in GitLab unter der Story stehen. Getestet gegen GitLab CE 19.5:
+
+- **REST** kennt Tasks als Issues mit `issue_type=task`: anlegen, verschieben, schliessen und `time_estimate` gehen wie bei Issues. Die Issue-Liste liefert sie mit, deshalb markiert der Sync sie (`isTask`) und setzt sie auf `isUnscheduled`. Damit fallen sie automatisch aus Gantt, Berichten, Ressourcen und CSV.
+- **Die Zuordnung zur Story** gibt es nur über GraphQL (`lib/gitlab/tasks.ts`). Der Sync holt alle Task-Eltern in einem Abruf, der Webhook fragt für einen einzelnen Task nach. Gespeichert wird sie als `storyId`, bewusst getrennt von `parentId` (Gantt-Hierarchie).
+- **Board:** Story-Karten zeigen den Task-Fortschritt; das Taskboard hat eine Zeile pro Story. Beim Verschieben nach Done nennt die DoD-Abfrage offene Tasks.
+- **Sprint-Burndown** aus den Abschlusszeitpunkten (`closedAt`) von Tasks (Stunden) oder Stories (SP). Ohne tägliche Schnappschüsse; der Umfang ist deshalb der heutige, spätere Neuschätzungen verschieben die ganze Kurve.
+
+## Sprint Review und Retrospektive
+
+Pro Sprint eine Seite (`/projects/:id/sprints/:number`). Review: `Sprint.goalOutcome` (`yes`/`partly`/`no`) und `reviewNotes`, dazu das Inkrement aus den Board-Daten. Retro: `SprintRetroItem` in drei Spalten, Punkte-Abstimmung über `SprintRetroVote` (höchstens drei pro Person und Sprint, serverseitig geprüft).
+
+- **Massnahmen schliessen den Kreis:** Eine Massnahme wird auf Klick ein GitLab-Issue mit Label `retro`, eingeplant im nächsten offenen Sprint (`issueIid` am Item). Die Retro des Folgesprints zeigt, ob das Issue geschlossen ist.
+- **Nur für angemeldete Personen.** Lese-Links zeigen die Retro nicht: Sie ist ein geschützter Raum des Teams.
+- Die Seite lädt sich alle 5 s neu, damit das Team gleichzeitig Karten schreiben kann.
+
+## Kanban-Fluss: WIP-Limits und Cumulative Flow
+
+- **WIP-Limits** stehen als JSON am Projekt (`wipLimits`, nur To Do, In Arbeit, Review). Das Board zählt die sichtbaren Karten, färbt eine überfüllte Spalte und warnt beim Hineinziehen, sperrt aber nicht.
+- **Cumulative Flow** braucht den Verlauf der Spalten. GitLab liefert Label-Wechsel nicht abfragbar, deshalb hält Taktline pro Projekt und Tag einen Stand fest (`BoardSnapshot`): nach jedem Verschieben, nach Webhooks, im Reconciliation-Job und beim Öffnen des Boards. Der letzte Stand des Tages gilt. Das Diagramm beginnt deshalb mit dem Tag der Einführung.
+- Farben: eine Farbe in Helligkeitsstufen (ordinal), weil die Spalten eine Reihenfolge haben; mit dem Palette-Validator geprüft.
+
+## Planning Poker
+
+Schätzrunden pro User Story (`EstimationRound`, `EstimationVote`), Deck modifiziertes Fibonacci (`lib/agile/poker.ts`). Das Team spielt **asynchron**: Gelegte Karten bleiben gespeichert, bis jemand aufdeckt. Aufdecken, neu schätzen und übernehmen darf jede angemeldete Person, eine Moderatorrolle gibt es nicht.
+
+- **Kein Spicken:** `GET /api/projects/:id/poker` liefert fremde Kartenwerte erst nach dem Aufdecken, vorher nur „hat gelegt“.
+- **Polling statt Push:** Die Seite fragt alle 2 s nach. Die Route merkt sich dabei im Speicher, wer gerade zuschaut (Anwesenheit, 10 s gültig, geht bei einem Neustart verloren).
+- **Ergebnis:** Übernehmen schreibt `story_points` in den gantt-meta-Block (ganze Zahlen laut AGENTS.md, deshalb wird ½ als Vorschlag zu 1) und hält es an der Runde fest. Alte Runden bleiben als Verlauf.
+- **Gleichzeitigkeit:** Aufdecken ist ein bedingtes Update (`revealedAt IS NULL`), neue Runden sind über `(workPackageId, number)` eindeutig. Zwei gleichzeitige Klicks ergeben denselben Zustand.
+
 ## Arbeitsjournal
 
 Pro Person und Projekt ein Eintrag je Arbeitstag (`JournalEntry`). GitLab kennt dafür kein Feld, die Daten liegen also nur in der Taktline-DB. Alle Angemeldeten lesen, schreiben dürfen Personen nur ihre eigenen Einträge; das prüfen die Server Actions. Lese-Links zeigen Journale nicht.

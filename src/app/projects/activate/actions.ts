@@ -9,6 +9,7 @@ import { GitlabTokenExpiredError } from '@/lib/auth/encrypted-adapter';
 import { syncSummaryLabels } from '@/lib/gitlab/summary-label';
 import { getProject } from '@/lib/gitlab/projects';
 import { performInitialSync } from '@/lib/gitlab/sync';
+import { loadTaskParentsForUser } from '@/lib/gitlab/tasks';
 import {
   getWebhookCallbackUrl,
   registerProjectWebhook,
@@ -64,6 +65,7 @@ export async function activateProjectAction(
       callbackUrl,
     );
     webhookReachable = webhook.reachable;
+    const taskParents = await loadTaskParentsForUser(userId, gitlabProject.pathWithNamespace);
     result = await prisma.$transaction(
       async (tx) => {
         const project = await tx.project.create({
@@ -82,6 +84,7 @@ export async function activateProjectAction(
           client,
           project.id,
           gitlabProjectId,
+          { taskParents },
         );
 
         await tx.auditLog.create({

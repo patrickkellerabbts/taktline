@@ -45,6 +45,10 @@ model User {
   riskHistoryEntries  RiskHistory[]
   createdShareLinks   ShareLink[]    @relation("ShareLinkCreatedBy")
   journalEntries      JournalEntry[]
+  estimationVotes     EstimationVote[]
+  retroItems          SprintRetroItem[] @relation("RetroItemAuthor")
+  retroVotes          SprintRetroVote[]
+  estimationRounds    EstimationRound[] @relation("EstimationRoundCreatedBy")
 }
 
 // Account speichert die OAuth-Tokens. access_token + refresh_token werden vor
@@ -99,6 +103,13 @@ model Project {
   createdAt              DateTime  @default(now())
   lastFullSyncAt         DateTime?
 
+  // Scrum-Zusagen (Scrum Guide 2020), die GitLab nicht kennt. Das Sprint-Ziel
+  // steht am Sprint. definitionOfDone ist eine Liste von Strings.
+  productGoal      String? @db.Text
+  definitionOfDone Json    @default("[]")
+  // Kanban: WIP-Limit pro Board-Spalte, z.B. {"doing": 3, "review": 2}.
+  wipLimits        Json    @default("{}")
+
   activatedBy  User          @relation("ProjectActivatedBy", fields: [activatedByUserId], references: [id])
   workPackages WorkPackage[]
   milestones   Milestone[]
@@ -107,6 +118,8 @@ model Project {
   shareLinks   ShareLink[]
   sprints      Sprint[]
   journalEntries JournalEntry[]
+  estimationRounds EstimationRound[]
+  boardSnapshots BoardSnapshot[]
 }
 
 enum SprintState {
@@ -133,11 +146,47 @@ model Sprint {
   // umschreiben.
   completedPoints Int?
   completedCount  Int?
+  // Sprint Review: Ergebnis gegen das Sprint-Ziel ("yes", "partly", "no") und
+  // was das Team gezeigt und an Feedback bekommen hat.
+  goalOutcome String?
+  reviewNotes String? @db.Text
   createdAt DateTime    @default(now())
 
-  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project    Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  retroItems SprintRetroItem[]
 
   @@unique([projectId, number])
+}
+
+// Retrospektive: Karten in drei Spalten. Massnahmen können ein GitLab-Issue
+// werden (issueIid), damit die nächste Retro prüfen kann, ob sie umgesetzt sind.
+model SprintRetroItem {
+  id        String   @id @default(uuid())
+  sprintId  String
+  // "good" | "improve" | "action"
+  kind      String
+  text      String   @db.Text
+  authorId  String?
+  issueIid  Int?
+  createdAt DateTime @default(now())
+
+  sprint Sprint           @relation(fields: [sprintId], references: [id], onDelete: Cascade)
+  author User?            @relation("RetroItemAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+  votes  SprintRetroVote[]
+
+  @@index([sprintId])
+}
+
+// Punkte-Abstimmung: Jede Person verteilt höchstens drei Punkte pro Retro.
+model SprintRetroVote {
+  itemId    String
+  userId    String
+  createdAt DateTime @default(now())
+
+  item SprintRetroItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  user User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([itemId, userId])
 }
 
 // Arbeitsjournal: pro Person und Projekt ein Eintrag je Arbeitstag. GitLab kennt
@@ -254,14 +303,25 @@ model WorkPackage {
   milestone           Milestone?           @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
   parent              WorkPackage?         @relation("WorkPackageHierarchy", fields: [parentId], references: [id])
   children            WorkPackage[]        @relation("WorkPackageHierarchy")
+  // Native GitLab-Tasks (issue_type=task) unter einer User Story. Bewusst nicht
+  // parentId: Das ist die Gantt-Hierarchie und machte die Story zum Summary.
+  isTask          Boolean       @default(false)
+  storyId         String?
+  story           WorkPackage?  @relation("StoryTasks", fields: [storyId], references: [id], onDelete: SetNull)
+  tasks           WorkPackage[] @relation("StoryTasks")
+  // GitLab-Zeiterfassung in Sekunden (time_stats).
+  estimateSeconds Int?
+  spentSeconds    Int?
   predecessors        Dependency[]         @relation("DependencySuccessor")
   successors          Dependency[]         @relation("DependencyPredecessor")
   resourceAllocations ResourceAllocation[]
   mergeRequests       WorkPackageMr[]
   risks               RiskWorkPackage[]
+  estimationRounds    EstimationRound[]
 
   @@unique([projectId, gitlabIssueIid])
   @@index([parentId])
+  @@index([storyId])
   @@index([projectId, deletedAt])
   @@index([milestoneId])
 }
@@ -457,4 +517,60 @@ model RiskHistory {
   user User? @relation(fields: [userId], references: [id])
 
   @@index([riskId, createdAt])
+}
+
+// Planning Poker: Schätzrunden pro User Story. Nicht alle spielen gleichzeitig,
+// deshalb bleiben gelegte Karten gespeichert, bis jemand aufdeckt. Eine neue
+// Runde für dieselbe Story bekommt die nächste Nummer; die alten bleiben als
+// Verlauf stehen. Das Ergebnis landet als story_points im gantt-meta-Block.
+model EstimationRound {
+  id              String    @id @default(uuid())
+  projectId       String
+  workPackageId   String
+  number          Int
+  createdByUserId String?
+  createdAt       DateTime  @default(now())
+  revealedAt      DateTime?
+  // Übernommene Story Points; null, solange nichts übernommen wurde.
+  result          Int?
+  adoptedAt       DateTime?
+
+  project     Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  workPackage WorkPackage      @relation(fields: [workPackageId], references: [id], onDelete: Cascade)
+  createdBy   User?            @relation("EstimationRoundCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  votes       EstimationVote[]
+
+  @@unique([workPackageId, number])
+  @@index([projectId])
+}
+
+// Eine Karte pro Person und Runde. `value` ist der Kartenwert aus dem Deck
+// (lib/agile/poker.ts), also auch "?" und "coffee".
+model EstimationVote {
+  id        String   @id @default(uuid())
+  roundId   String
+  userId    String
+  value     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  round EstimationRound @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  user  User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([roundId, userId])
+}
+
+// Täglicher Stand des Boards für das Cumulative Flow Diagram: Karten pro
+// Spalte. GitLab merkt sich Spaltenwechsel (Labels) nicht in abfragbarer Form,
+// deshalb zählt Taktline selbst mit, ab dem Tag der Einführung.
+model BoardSnapshot {
+  projectId String
+  date      DateTime @db.Date
+  // {"backlog": 4, "todo": 3, "doing": 2, "review": 1, "done": 12}
+  counts    Json
+  updatedAt DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@id([projectId, date])
 }

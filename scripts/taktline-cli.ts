@@ -63,6 +63,10 @@ Arbeitsjournal (braucht TAKTLINE_URL):
          legt einen AI-Vorschlag an, den die Person in der Web-App prüft und übernimmt.
          Ein bestehender Vorschlag für den Tag wird ersetzt, ein eigener Eintrag nie.
 
+Tasks (native GitLab-Tasks unter einer Story, Schätzung in Stunden):
+  tasks <story-iid>
+  task-add <story-iid> --title <text> [--hours <h>] [--assignee <user-id>]
+
 Lesen:
   list [--state opened|closed|all] [--column ${BOARD_COLUMNS.map((c) => c.id).join('|')}] [--sprint <nr>] [--stories]
   show <iid>
@@ -87,6 +91,14 @@ Datumsformat: JJJJ-MM-TT`;
 
 class CliError extends Error {}
 
+type TaskNode = {
+  iid: string;
+  title: string;
+  state: string;
+  workItemType: { name: string };
+  widgets: Array<{ type: string; timeEstimate?: number; assignees?: { nodes: Array<{ id: string; username: string }> } }>;
+};
+
 type Issue = {
   iid: number;
   title: string;
@@ -96,6 +108,9 @@ type Issue = {
   labels: string[];
   assignees?: Array<{ id: number; username: string }>;
   web_url?: string;
+  issue_type?: string;
+  id?: number;
+  time_stats?: { time_estimate?: number; total_time_spent?: number };
 };
 
 function fail(message: string): never {
@@ -219,6 +234,8 @@ function summarize(issue: Issue) {
     column: columnForIssue(issue.state, issue.labels),
     sprint: sprintNumberOf(issue.labels),
     story: isStory(issue.labels),
+    task: issue.issue_type === 'task',
+    ...(issue.time_stats?.time_estimate ? { estimate_hours: issue.time_stats.time_estimate / 3600 } : {}),
     summary: issue.labels.includes(SUMMARY_LABEL),
     due_date: issue.due_date,
     labels: issue.labels,
@@ -299,6 +316,19 @@ async function main() {
   const client = new Gitlab({ host, token, camelize: false });
   const dryRun = values['dry-run'] === true;
   const print = (value: unknown) => console.log(JSON.stringify(value, null, 2));
+  // Die Hierarchie von Work Items (Task unter Story) gibt es nur über GraphQL.
+  const graphql = async <T,>(query: string, variables: Record<string, unknown>): Promise<T> => {
+    const res = await fetch(new URL('/api/graphql', host), {
+      method: 'POST',
+      headers: { 'PRIVATE-TOKEN': token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query, variables }),
+    });
+    const body = (await res.json().catch(() => null)) as { data?: T; errors?: Array<{ message: string }> } | null;
+    if (!res.ok || !body?.data || body.errors?.length) {
+      fail(`GitLab GraphQL: ${body?.errors?.map((e) => e.message).join('; ') ?? `HTTP ${res.status}`}`);
+    }
+    return body.data;
+  };
 
   if (command === 'projects') {
     const projects = (await client.Projects.all({
@@ -325,6 +355,10 @@ async function main() {
   }
 
   const { project, source } = resolveProject(host);
+  const projectPath = async (): Promise<string> =>
+    typeof project === 'string' && project.includes('/')
+      ? project
+      : ((await client.Projects.show(project)) as unknown as { path_with_namespace: string }).path_with_namespace;
   if (command === 'current') {
     const found = (await client.Projects.show(project)) as unknown as { path_with_namespace: string; web_url: string };
     print({ project: found.path_with_namespace, url: found.web_url, source });
@@ -445,6 +479,75 @@ async function main() {
               (!values.stories || i.story),
           ),
       );
+      return;
+    }
+
+    case 'tasks': {
+      const story = await loadIssue(iidArgument(args[0]));
+      if (!isStory(story.labels)) fail(`#${story.iid} ist keine User Story`);
+      const path = await projectPath();
+      const data = await graphql<{
+        project: { workItems: { nodes: Array<{ widgets: Array<{ type: string; children?: { nodes: TaskNode[] } }> }> } };
+      }>(
+        `query($path: ID!, $iid: String!) { project(fullPath: $path) { workItems(iids: [$iid]) { nodes { widgets { type
+          ... on WorkItemWidgetHierarchy { children(first: 100) { nodes { iid title state workItemType { name }
+            widgets { type ... on WorkItemWidgetTimeTracking { timeEstimate }
+              ... on WorkItemWidgetAssignees { assignees { nodes { id username } } } } } } } } } } } }`,
+        { path, iid: String(story.iid) },
+      );
+      const children = data.project.workItems.nodes[0]?.widgets.find((w) => w.type === 'HIERARCHY')?.children?.nodes ?? [];
+      const tasks = children
+        .filter((c) => c.workItemType.name === 'Task')
+        .map((c) => {
+          const estimate = c.widgets.find((w) => w.type === 'TIME_TRACKING')?.timeEstimate ?? 0;
+          return {
+            iid: Number(c.iid),
+            title: c.title,
+            state: c.state === 'CLOSED' ? 'closed' : 'opened',
+            estimate_hours: estimate ? estimate / 3600 : null,
+            assignees: (c.widgets.find((w) => w.type === 'ASSIGNEES')?.assignees?.nodes ?? []).map((a) => a.username),
+          };
+        });
+      const open = tasks.filter((t) => t.state === 'opened');
+      print({
+        project,
+        story: story.iid,
+        tasks,
+        done: tasks.length - open.length,
+        remaining_hours: open.reduce((sum, t) => sum + (t.estimate_hours ?? 0), 0),
+      });
+      return;
+    }
+
+    case 'task-add': {
+      const story = await loadIssue(iidArgument(args[0]));
+      if (!isStory(story.labels)) fail(`#${story.iid} ist keine User Story`);
+      if (story.state === 'closed') fail(`#${story.iid} ist schon geschlossen`);
+      if (!values.title?.trim()) fail('--title fehlt');
+      let seconds: number | null = null;
+      if (values.hours !== undefined) {
+        const hours = Number(values.hours.replace(',', '.'));
+        if (!Number.isFinite(hours) || hours <= 0 || hours > 200) fail('--hours muss zwischen 0 und 200 liegen');
+        seconds = Math.round(hours * 3600);
+      }
+      const assignee = values.assignee?.[0] === undefined ? undefined : intValue('assignee', values.assignee[0], 1);
+      const payload = { title: values.title.trim(), story: story.iid, estimate_hours: seconds ? seconds / 3600 : null, assignee: assignee ?? null };
+      if (dryRun) {
+        print({ project, dryRun: true, task: payload, ...(seconds && seconds > 8 * 3600 ? { hint: 'Mehr als 8 Stunden: lieber aufteilen' } : {}) });
+        return;
+      }
+      const created = (await client.Issues.create(project, payload.title, {
+        issueType: 'task',
+        ...(assignee ? { assigneeIds: [assignee] } : {}),
+      } as Record<string, unknown>)) as unknown as Issue;
+      if (seconds) await client.Issues.addTimeEstimate(project, created.iid, `${Math.round(seconds / 60)}m`);
+      await graphql<{ workItemUpdate: { errors: string[] } }>(
+        `mutation($id: WorkItemID!, $parent: WorkItemID!) { workItemUpdate(input: { id: $id, hierarchyWidget: { parentId: $parent } }) { errors } }`,
+        { id: `gid://gitlab/WorkItem/${created.id}`, parent: `gid://gitlab/WorkItem/${story.id}` },
+      ).then((r) => {
+        if (r.workItemUpdate.errors.length) fail(`Task #${created.iid} angelegt, aber nicht unter die Story gehängt: ${r.workItemUpdate.errors.join('; ')}`);
+      });
+      print({ project, changed: true, task: { iid: created.iid, ...payload, url: created.web_url } });
       return;
     }
 
