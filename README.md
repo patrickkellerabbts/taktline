@@ -9,7 +9,7 @@ Projektmanagement-Tool als Bridge zwischen GitLab CE und vollwertiger PM-Softwar
 ![Gantt-Ansicht mit Hierarchie, Dependency-Pfeilen und Inspector](docs/screenshots/gantt-overview.png)
 
 <details>
-<summary>Weitere Ansichten: Board, Sprints, Lese-Links, Risikomatrix, Ressourcen, Berichte</summary>
+<summary>Weitere Ansichten: Board, Taskboard, Sprints, Planning Poker, Retro, Fluss, Lese-Links, Risikomatrix, Ressourcen, Berichte</summary>
 
 **Kanban-Board** — Karten per Drag-and-Drop zwischen den Spalten verschieben, standardmässig mit dem aktiven Sprint:
 
@@ -19,9 +19,25 @@ Projektmanagement-Tool als Bridge zwischen GitLab CE und vollwertiger PM-Softwar
 
 ![User Story bearbeiten](docs/screenshots/story-dialog.png)
 
-**Sprints** — Aufgaben aus dem Backlog einplanen, Sprints starten und abschliessen:
+**Taskboard** — Stories im Sprint Planning in Tasks von höchstens einem Tag zerlegt (native GitLab-Tasks mit Stundenschätzung), eine Zeile pro Story:
+
+![Taskboard](docs/screenshots/taskboard.png)
+
+**Sprints** — Product Goal, Definition of Done und Velocity oben; Aufgaben aus dem Backlog einplanen, Burndown des laufenden Sprints in Stunden oder Story Points:
 
 ![Sprint-Planung](docs/screenshots/sprints.png)
+
+**Planning Poker** — Stories gemeinsam schätzen, auch zeitversetzt; die Karten bleiben verdeckt, bis jemand aufdeckt, das Ergebnis wird als Story Points übernommen:
+
+![Planning Poker](docs/screenshots/poker.png)
+
+**Sprint Review und Retrospektive** — Sprint-Ziel erreicht oder nicht, Inkrement und Feedback; Retro-Board mit Punkte-Abstimmung, Massnahmen werden Issues im nächsten Sprint:
+
+![Sprint Review und Retrospektive](docs/screenshots/retro.png)
+
+**Fluss** — Cumulative Flow Diagram und WIP-Limits pro Spalte:
+
+![Cumulative Flow Diagram](docs/screenshots/flow.png)
 
 **Lese-Links** — für Personen ohne GitLab-Konto, mit Ablaufdatum und jederzeit widerrufbar:
 

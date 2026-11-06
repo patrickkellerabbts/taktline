@@ -67,6 +67,48 @@ const SHOTS: Shot[] = [
     viewport: { width: 1600, height: 760 },
   },
   {
+    file: 'taskboard.png',
+    path: `/projects/${DEMO_PROJECT_ID}/board`,
+    description: 'Taskboard: Tasks pro Story im aktiven Sprint',
+    viewport: { width: 1600, height: 760 },
+    prepare: async (page) => {
+      await page.getByRole('button', { name: 'Taskboard' }).click();
+      await page.locator('.taskboard__task').first().waitFor();
+    },
+  },
+  {
+    file: 'poker.png',
+    path: `/projects/${DEMO_PROJECT_ID}/poker`,
+    description: 'Planning Poker nach dem Aufdecken',
+    viewport: { width: 1600, height: 1000 },
+    prepare: async (page) => {
+      await page.getByRole('button', { name: /Merkliste für Produkte/ }).click();
+      await page.getByText('Runde 1').waitFor();
+      await page.getByRole('button', { name: /^8 –/ }).click();
+      await page.waitForTimeout(1200);
+      await page.getByRole('button', { name: 'Aufdecken' }).click();
+      await page.locator('.poker__stats').waitFor();
+      // Die Karten drehen sich gestaffelt um.
+      await page.waitForTimeout(1500);
+    },
+  },
+  {
+    file: 'retro.png',
+    path: `/projects/${DEMO_PROJECT_ID}/sprints/1`,
+    description: 'Sprint Review und Retrospektive',
+    viewport: { width: 1600, height: 1100 },
+  },
+  {
+    file: 'flow.png',
+    path: `/projects/${DEMO_PROJECT_ID}/board`,
+    description: 'Cumulative Flow Diagram',
+    viewport: { width: 1600, height: 640 },
+    prepare: async (page) => {
+      await page.getByRole('button', { name: 'Fluss' }).click();
+      await page.locator('.flow__svg').waitFor();
+    },
+  },
+  {
     file: 'share-links.png',
     path: `/projects/${DEMO_PROJECT_ID}/board`,
     description: 'Lese-Link erstellen',
