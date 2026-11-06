@@ -87,6 +87,15 @@ Das Kanban-Board liest ausschliesslich GitLab-native Felder. Wer Issues per API 
 - [x] Vorschau vorhanden
 ```
 
+## Tasks unter User Stories
+
+Tasks sind **native GitLab-Tasks** (Work Item Type „Task“, REST `issue_type=task`), nicht Teil des `gantt-meta`-Blocks:
+
+- **Zuordnung** zur Story über die GitLab-Hierarchie (GraphQL `workItemUpdate` mit `hierarchyWidget.parentId`). `parent_iid` im Block ist dafür **nicht** gedacht; das ist die Gantt-Hierarchie und machte die Story zum Summary-Task.
+- **Schätzung** in der GitLab-Zeiterfassung (`POST /projects/:id/issues/:iid/time_estimate?duration=3h`).
+- **Spalte** wie bei jeder Karte über `board::`-Labels, Done = geschlossen.
+- Taktline zeigt Tasks nur im Taskboard und im Sprint-Burndown, nie im Gantt.
+
 ## Regeln beim Schreiben
 
 1. **Genau ein Block pro Issue.** Wenn schon einer existiert: entferne den alten zuerst, schreibe dann den neuen.

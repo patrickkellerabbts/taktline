@@ -9,7 +9,7 @@ Projektmanagement-Tool als Bridge zwischen GitLab CE und vollwertiger PM-Softwar
 ![Gantt-Ansicht mit Hierarchie, Dependency-Pfeilen und Inspector](docs/screenshots/gantt-overview.png)
 
 <details>
-<summary>Weitere Ansichten: Board, Sprints, Lese-Links, Risikomatrix, Ressourcen, Berichte</summary>
+<summary>Weitere Ansichten: Board, Taskboard, Sprints, Planning Poker, Retro, Fluss, Lese-Links, Risikomatrix, Ressourcen, Berichte</summary>
 
 **Kanban-Board** — Karten per Drag-and-Drop zwischen den Spalten verschieben, standardmässig mit dem aktiven Sprint:
 
@@ -19,9 +19,25 @@ Projektmanagement-Tool als Bridge zwischen GitLab CE und vollwertiger PM-Softwar
 
 ![User Story bearbeiten](docs/screenshots/story-dialog.png)
 
-**Sprints** — Aufgaben aus dem Backlog einplanen, Sprints starten und abschliessen:
+**Taskboard** — Stories im Sprint Planning in Tasks von höchstens einem Tag zerlegt (native GitLab-Tasks mit Stundenschätzung), eine Zeile pro Story:
+
+![Taskboard](docs/screenshots/taskboard.png)
+
+**Sprints** — Product Goal, Definition of Done und Velocity oben; Aufgaben aus dem Backlog einplanen, Burndown des laufenden Sprints in Stunden oder Story Points:
 
 ![Sprint-Planung](docs/screenshots/sprints.png)
+
+**Planning Poker** — Stories gemeinsam schätzen, auch zeitversetzt; die Karten bleiben verdeckt, bis jemand aufdeckt, das Ergebnis wird als Story Points übernommen:
+
+![Planning Poker](docs/screenshots/poker.png)
+
+**Sprint Review und Retrospektive** — Sprint-Ziel erreicht oder nicht, Inkrement und Feedback; Retro-Board mit Punkte-Abstimmung, Massnahmen werden Issues im nächsten Sprint:
+
+![Sprint Review und Retrospektive](docs/screenshots/retro.png)
+
+**Fluss** — Cumulative Flow Diagram und WIP-Limits pro Spalte:
+
+![Cumulative Flow Diagram](docs/screenshots/flow.png)
 
 **Lese-Links** — für Personen ohne GitLab-Konto, mit Ablaufdatum und jederzeit widerrufbar:
 
@@ -67,6 +83,11 @@ So sieht es ohne Anmeldung aus, nur lesend und ohne Risiken:
 - **Kanban-Board** mit fünf Spalten; Spalten liegen als Labels in GitLab, „Done“ ist der Issue-Status
 - **User Stories** mit Akzeptanzkriterien und Story Points; ohne Datum erscheinen sie nur auf dem Board, nicht im Gantt
 - **Sprints:** planen, starten, abschliessen, Board nach Sprint filtern; Zuordnung als Label am Issue
+- **Scrum-Rahmen:** Product Goal und Definition of Done pro Projekt, Velocity der abgeschlossenen Sprints als Planungsrichtwert; beim Verschieben einer Story nach Done fragt das Board die DoD und die Akzeptanzkriterien ab
+- **Tasks und Taskboard:** Stories in native GitLab-Tasks mit Stundenschätzung zerlegen, Taskboard mit einer Zeile pro Story, Sprint-Burndown in Stunden oder Story Points
+- **Sprint Review und Retrospektive:** Sprint-Ziel erreicht oder nicht, Inkrement und Feedback; Retro-Board mit Punkte-Abstimmung, Massnahmen werden Issues im nächsten Sprint und die nächste Retro prüft sie
+- **Kanban-Fluss:** WIP-Limits pro Spalte mit Warnung beim Überschreiten, Cumulative Flow Diagram aus täglichen Board-Ständen
+- **Planning Poker:** User Stories im Team schätzen, auch zeitversetzt; Karten bleiben verdeckt bis zum Aufdecken, Ergebnis wird als Story Points übernommen
 - **Arbeitsjournal:** pro Person und Tag Dauer, Kurztitel, technischer und organisatorischer Teil; Agenten lesen die Einträge aus und schlagen neue vor, die die Person prüft und mit einem Klick übernimmt
 - **Lese-Links** ohne GitLab-Konto: Gantt, Board, Sprints, Berichte und Ressourcen eines Projekts, ohne Risiken
 - **Webhook-Receiver** für Live-Updates aus GitLab (siehe [Deployment](#deployment))

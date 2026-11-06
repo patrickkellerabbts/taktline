@@ -6,6 +6,8 @@ import { savePreferencesAction } from '@/lib/preferences-actions';
 import { AppHeader, SubHeader } from '@/components/layout/AppHeader';
 import { SprintsView } from '@/components/sprints/SprintsView';
 import { loadProjectBoard } from '@/lib/agile/load-board';
+import { computeVelocity, loadCommitments } from '@/lib/agile/commitments';
+import { ScrumFrame } from '@/components/sprints/ScrumFrame';
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -16,6 +18,9 @@ export default async function SprintsPage({ params }: Props) {
   const { id } = await params;
   const board = await loadProjectBoard(id);
   if (!board) notFound();
+  const commitments = await loadCommitments(board.id);
+  if (!commitments) notFound();
+  const velocity = computeVelocity(board.sprints);
 
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },
@@ -30,7 +35,13 @@ export default async function SprintsPage({ params }: Props) {
       <AppHeader username={session.user.username} active="sprints" />
       <SubHeader crumbs={[{ label: 'Projekte', href: '/projects' }, board.name, 'Sprints']} />
       <div style={{ flex: 1, padding: '14px 18px', minHeight: 0, display: 'flex' }}>
-        <SprintsView projectId={board.id} cards={board.cards} sprints={board.sprints} />
+        <SprintsView
+          projectId={board.id}
+          cards={board.cards}
+          sprints={board.sprints}
+          velocityAverage={velocity.average}
+          header={<ScrumFrame projectId={board.id} commitments={commitments} velocity={velocity} />}
+        />
       </div>
     </div>
   );

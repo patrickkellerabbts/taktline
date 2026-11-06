@@ -1,6 +1,6 @@
 ---
 name: taktline
-description: Plant und pflegt Projekte in Taktline und GitLab, aus jedem Repo – User Stories und Vorgänge anlegen, Karten auf dem Kanban-Board verschieben, Termine, Fortschritt, Story Points, Abhängigkeiten, Hierarchie und Ressourcen setzen, Issues Sprints zuordnen, Arbeitsjournale auslesen und Journal-Einträge vorschlagen. Verwenden, wenn der Nutzer Taktline nennt oder Backlog, Board, Gantt, Stories, Sprints oder Arbeitsjournale eines Projekts planen oder einsehen will. Nicht für Risiken, das Anlegen oder Abschliessen von Sprints und Lese-Links; diese gehen nur in der Web-App.
+description: Plant und pflegt Projekte in Taktline und GitLab, aus jedem Repo – User Stories und Vorgänge anlegen, Karten auf dem Kanban-Board verschieben, Termine, Fortschritt, Story Points, Abhängigkeiten, Hierarchie und Ressourcen setzen, Stories in Tasks zerlegen, Issues Sprints zuordnen, Arbeitsjournale auslesen und Journal-Einträge vorschlagen. Verwenden, wenn der Nutzer Taktline nennt oder Backlog, Board, Gantt, Stories, Sprints oder Arbeitsjournale eines Projekts planen oder einsehen will. Nicht für Risiken, das Anlegen oder Abschliessen von Sprints und Lese-Links; diese gehen nur in der Web-App.
 ---
 
 # Taktline bedienen
@@ -64,6 +64,18 @@ node ~/.claude/skills/taktline/taktline.mjs journal-suggest --person p.keller --
 - **Stunden** nennt die Person. Schätz sie nicht aus der Sitzungsdauer, ohne zu fragen.
 - Zeig den Vorschlag vorher mit `--dry-run` und sag danach, dass er in Taktline unter „Journal“ auf Übernahme wartet.
 
+## Tasks unter Stories
+
+Stories werden im Sprint Planning in Tasks zerlegt. Das sind native GitLab-Tasks unter der Story, die Schätzung steht in Stunden in der GitLab-Zeiterfassung. `tasks <story-iid>` zeigt sie mit den offenen Stunden. `task-add <story-iid> --title … --hours …` legt einen Task an.
+
+```bash
+node ~/.claude/skills/taktline/taktline.mjs task-add 42 --title "Datenmodell anlegen" --hours 3 --dry-run
+```
+
+- **Höchstens ein Tag pro Task.** Über 8 Stunden schlägt die CLI vor aufzuteilen. Mach daraus mehrere kleinere Tasks.
+- Schlag die Zerlegung zuerst als Liste vor und leg die Tasks erst an, wenn der Nutzer zustimmt. Stunden schätzt das Team. Übernimm Zahlen des Nutzers, sonst lass `--hours` weg.
+- Tasks verschiebt `move` wie jede Karte. Sie erscheinen im Taskboard ihrer Story, nicht im Gantt.
+
 ## Vorgehen
 
 1. **Erst lesen:** Mit `list` und `show <iid>` den aktuellen Stand holen, nie von alten Ausgaben ausgehen.
@@ -101,4 +113,4 @@ $TL dep-add 42 --on 41 --type FS --lag 2
 
 ## Was nicht geht
 
-Issues löschen, Sprints anlegen, starten oder abschliessen, Risiken, Lese-Links sowie bestätigte Journal-Einträge anlegen oder ändern. Verweise dafür auf die Web-App. Das Datenformat steht im Taktline-Repo in `AGENTS.md`.
+Issues löschen, Sprints anlegen, starten oder abschliessen, Planning Poker, Risiken, Lese-Links sowie bestätigte Journal-Einträge anlegen oder ändern. Verweise dafür auf die Web-App. Das Datenformat steht im Taktline-Repo in `AGENTS.md`.

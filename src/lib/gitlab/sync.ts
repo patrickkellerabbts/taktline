@@ -32,6 +32,11 @@ export async function performInitialSync(
   client: GitlabClient,
   projectInternalId: string,
   gitlabProjectId: number,
+  options: {
+    /** Task-IID → Story-IID aus GraphQL (lib/gitlab/tasks.ts). null = nicht
+     *  lesbar, dann bleibt die bisherige Zuordnung stehen. */
+    taskParents?: Map<number, number | null> | null;
+  } = {},
 ): Promise<SyncResult> {
   const summaryCandidateIds = new Set<string>();
   const result: SyncResult = {
@@ -223,11 +228,15 @@ export async function performInitialSync(
     const closedAt = issue.closed_at ? new Date(issue.closed_at as string) : null;
 
     const labelsCache = extractLabels(issue.labels);
-    const isUnscheduled = isUnscheduledStory({
-      labels: labelNames(labelsCache),
-      metaStartDate: meta?.start_date,
-      dueDate: issue.due_date as string | null,
-    });
+    const task = taskFields(issue);
+    // Tasks sind Sprint-Arbeit unter einer Story, keine Vorgänge im Gantt.
+    const isUnscheduled =
+      task.isTask ||
+      isUnscheduledStory({
+        labels: labelNames(labelsCache),
+        metaStartDate: meta?.start_date,
+        dueDate: issue.due_date as string | null,
+      });
 
     // Milestone-Referenz aus dem GitLab-Issue auflösen → lokale Milestone.id
     const issueMilestone = (issue as { milestone?: { id?: number } | null }).milestone;
@@ -258,6 +267,7 @@ export async function performInitialSync(
         labelsCache,
         assigneesCache: extractAssignees(issue.assignees),
         milestoneId: milestoneLocalId,
+        ...task,
       },
       update: {
         startDate,
@@ -274,6 +284,7 @@ export async function performInitialSync(
         labelsCache,
         assigneesCache: extractAssignees(issue.assignees),
         milestoneId: milestoneLocalId,
+        ...task,
         lastSyncedAt: new Date(),
       },
       select: { id: true },
@@ -309,6 +320,18 @@ export async function performInitialSync(
     select: { id: true, gitlabIssueIid: true },
   });
   const iidToId = new Map(allWps.map((wp) => [wp.gitlabIssueIid, wp.id]));
+
+  // Tasks ihrer Story zuordnen. Ohne GraphQL-Antwort bleibt alles, wie es war.
+  if (options.taskParents) {
+    for (const issue of issues) {
+      if (!taskFields(issue).isTask) continue;
+      const myId = iidToId.get(issue.iid);
+      if (!myId) continue;
+      const parentIid = options.taskParents.get(issue.iid) ?? null;
+      const storyId = parentIid === null ? null : (iidToId.get(parentIid) ?? null);
+      await tx.workPackage.update({ where: { id: myId }, data: { storyId } });
+    }
+  }
 
   for (const issue of issues) {
     const meta = parseGanttMeta(issue.description as string | null);
@@ -481,6 +504,10 @@ export type IssueUpdate = {
   assignees: unknown;
   // GitLab-Milestone-ID falls dem Issue ein Meilenstein zugeordnet ist
   milestoneId: number | null;
+  /** Aus dem Webhook-Payload (type, time_estimate, total_time_spent). */
+  task?: { isTask: boolean; estimateSeconds: number | null; spentSeconds: number | null };
+  /** IID der Story bei Tasks; undefined = unbekannt, nichts ändern. */
+  storyIid?: number | null;
 };
 
 export type IssueAction = 'create' | 'update' | 'state-only';
@@ -509,11 +536,28 @@ export async function applyIssueUpdate(
 
   const labelsCache = extractLabels(issue.labels);
   const assigneesCache = extractAssignees(issue.assignees);
-  const isUnscheduled = isUnscheduledStory({
-    labels: labelNames(labelsCache),
-    metaStartDate: meta?.start_date,
-    dueDate: issue.dueDate,
-  });
+  // Ohne Angabe (andere Aufrufer) bleiben die Task-Felder unangetastet.
+  const task = issue.task ?? {};
+  const isUnscheduled =
+    issue.task?.isTask ||
+    isUnscheduledStory({
+      labels: labelNames(labelsCache),
+      metaStartDate: meta?.start_date,
+      dueDate: issue.dueDate,
+    });
+
+  let storyId: string | null | undefined;
+  if (issue.storyIid !== undefined) {
+    storyId =
+      issue.storyIid === null
+        ? null
+        : ((
+            await tx.workPackage.findUnique({
+              where: { projectId_gitlabIssueIid: { projectId: projectInternalId, gitlabIssueIid: issue.storyIid } },
+              select: { id: true },
+            })
+          )?.id ?? null);
+  }
 
   // Siehe performInitialSync: offen ⇒ null, damit ein reopen die frühere
   // Schliessung nicht stehen lässt.
@@ -571,6 +615,8 @@ export async function applyIssueUpdate(
       labelsCache,
       assigneesCache,
       milestoneId: milestoneLocalId,
+      ...task,
+      ...(storyId !== undefined ? { storyId } : {}),
     },
     update: {
       // Bei state-only Events (close/reopen) nicht alles überschreiben —
@@ -592,6 +638,8 @@ export async function applyIssueUpdate(
             labelsCache,
             assigneesCache,
             milestoneId: milestoneLocalId,
+            ...task,
+            ...(storyId !== undefined ? { storyId } : {}),
             lastSyncedAt: new Date(),
           }),
     },
@@ -868,4 +916,23 @@ export async function syncAllWorkPackageMergeRequests(
   }
   logger.info({ projectInternalId, synced, failed }, 'mr-bulk-sync abgeschlossen');
   return { synced, failed };
+}
+
+/** Task-Merkmale aus einem REST-Issue oder Webhook-Payload. */
+export function taskFields(issue: unknown): { isTask: boolean; estimateSeconds: number | null; spentSeconds: number | null } {
+  const o = issue as {
+    issue_type?: unknown;
+    type?: unknown;
+    time_stats?: { time_estimate?: unknown; total_time_spent?: unknown };
+    time_estimate?: unknown;
+    total_time_spent?: unknown;
+  };
+  const type = typeof o.issue_type === 'string' ? o.issue_type : typeof o.type === 'string' ? o.type : '';
+  const estimate = o.time_stats?.time_estimate ?? o.time_estimate;
+  const spent = o.time_stats?.total_time_spent ?? o.total_time_spent;
+  return {
+    isTask: type.toLowerCase() === 'task',
+    estimateSeconds: typeof estimate === 'number' && estimate > 0 ? estimate : null,
+    spentSeconds: typeof spent === 'number' && spent > 0 ? spent : null,
+  };
 }

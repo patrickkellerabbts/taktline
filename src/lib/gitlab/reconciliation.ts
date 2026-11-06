@@ -15,6 +15,8 @@ import { prisma } from '@/lib/db';
 import { logger } from '@/lib/logger';
 import { getGitlabClientForUser } from './client';
 import { performInitialSync } from './sync';
+import { loadTaskParentsForUser } from './tasks';
+import { recordBoardSnapshot } from '@/lib/agile/flow';
 import { syncSummaryLabels } from './summary-label';
 import { GitlabTokenExpiredError } from '@/lib/auth/encrypted-adapter';
 
@@ -52,6 +54,7 @@ export async function reconcileProject(projectId: string): Promise<Reconciliatio
     }
 
     const client = await getGitlabClientForUser(project.activatedByUserId);
+    const taskParents = await loadTaskParentsForUser(project.activatedByUserId, project.nameCache);
 
     const result = await prisma.$transaction(
       async (tx) => {
@@ -60,6 +63,7 @@ export async function reconcileProject(projectId: string): Promise<Reconciliatio
           client,
           project.id,
           project.gitlabProjectId,
+          { taskParents },
         );
         await tx.project.update({
           where: { id: project.id },
@@ -88,6 +92,9 @@ export async function reconcileProject(projectId: string): Promise<Reconciliatio
         result.summaryCandidateIds,
       );
     }
+
+    // Cumulative Flow: auch an Tagen ohne Klick im Board einen Stand festhalten.
+    await recordBoardSnapshot(project.id);
 
     const durationMs = Date.now() - startedAt;
     logger.info(

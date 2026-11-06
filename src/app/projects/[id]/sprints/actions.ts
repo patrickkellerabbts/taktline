@@ -386,3 +386,38 @@ export async function closeSprintAction(
     return result;
   }
 }
+
+// ─── Product Goal und Definition of Done ─────────────────────────────────────
+
+const ProductGoalSchema = z.string().trim().max(2000, 'Das Product Goal ist zu lang');
+const DodSchema = z
+  .array(z.string().trim().min(1).max(200, 'Ein Punkt der Definition of Done ist zu lang'))
+  .max(20, 'Höchstens 20 Punkte');
+
+export async function updateProductGoalAction(projectId: string, raw: string): Promise<ActionResult> {
+  const session = await auth();
+  if (!session?.user?.id) return { ok: false, error: 'Nicht angemeldet' };
+  const parsed = ProductGoalSchema.safeParse(raw);
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
+  const updated = await prisma.project.updateMany({
+    where: { id: projectId },
+    data: { productGoal: parsed.data || null },
+  });
+  if (updated.count === 0) return { ok: false, error: 'Projekt nicht gefunden' };
+  revalidateProject(projectId);
+  return { ok: true };
+}
+
+export async function updateDefinitionOfDoneAction(projectId: string, raw: string[]): Promise<ActionResult> {
+  const session = await auth();
+  if (!session?.user?.id) return { ok: false, error: 'Nicht angemeldet' };
+  const parsed = DodSchema.safeParse(raw.filter((item) => item.trim() !== ''));
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
+  const updated = await prisma.project.updateMany({
+    where: { id: projectId },
+    data: { definitionOfDone: parsed.data },
+  });
+  if (updated.count === 0) return { ok: false, error: 'Projekt nicht gefunden' };
+  revalidateProject(projectId);
+  return { ok: true };
+}

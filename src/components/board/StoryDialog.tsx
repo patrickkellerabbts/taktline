@@ -10,6 +10,7 @@ import {
 import { BOARD_COLUMNS, type BoardColumnId } from '@/lib/agile/board';
 import type { SprintInfo } from '@/lib/agile/sprints';
 import type { BoardCard, BoardLabel, BoardPerson } from './BoardView';
+import { StoryTasks } from './StoryTasks';
 
 type Props = {
   projectId: string;
@@ -322,6 +323,8 @@ export function StoryDialog({
               </div>
             </div>
           )}
+
+          {card && <StoryTasks projectId={projectId} card={card} people={people} />}
 
           {error && (
             <div role="alert" className="story-dialog__error">

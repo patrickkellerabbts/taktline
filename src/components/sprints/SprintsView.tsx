@@ -23,6 +23,7 @@ import {
   updateSprintAction,
 } from '@/app/projects/[id]/sprints/actions';
 import { AssigneeAvatars } from '@/components/gantt/AssigneeAvatars';
+import { SprintBurndown } from './SprintBurndown';
 import { BOARD_COLUMNS } from '@/lib/agile/board';
 import type { SprintInfo } from '@/lib/agile/sprints';
 import type { BoardCard } from '@/components/board/BoardView';
@@ -32,6 +33,10 @@ type Props = {
   cards: BoardCard[];
   sprints: SprintInfo[];
   readOnly?: boolean;
+  /** Durchschnittliche Velocity; markiert Sprints, die deutlich mehr planen. */
+  velocityAverage?: number | null;
+  /** Kopfbereich über den Sprints (Product Goal, DoD, Velocity). */
+  header?: React.ReactNode;
 };
 
 const BACKLOG_DROP = 'backlog';
@@ -56,7 +61,7 @@ function pointsOf(cards: BoardCard[]): number {
   return cards.reduce((sum, c) => sum + (c.storyPoints ?? 0), 0);
 }
 
-export function SprintsView({ projectId, cards: serverCards, sprints, readOnly = false }: Props) {
+export function SprintsView({ projectId, cards: serverCards, sprints, readOnly = false, velocityAverage = null, header }: Props) {
   const router = useRouter();
   const [, startTransition] = useTransition();
   const [cards, setCards] = useState(serverCards);
@@ -122,6 +127,7 @@ export function SprintsView({ projectId, cards: serverCards, sprints, readOnly =
         projectId={projectId}
         readOnly={readOnly}
         canStart={!active}
+        velocityAverage={velocityAverage}
         onEdit={() => setEditing(sprint)}
         onStart={() => run(() => startSprintAction(sprint.id))}
         onClose={() => setClosing(sprint)}
@@ -134,6 +140,7 @@ export function SprintsView({ projectId, cards: serverCards, sprints, readOnly =
 
   return (
     <div className="sprints">
+      {header}
       <div className="board__toolbar">
         {!readOnly && (
           <button type="button" className="btn btn--primary btn--sm" onClick={() => setEditing('new')}>
@@ -230,6 +237,7 @@ function SprintSection({
   projectId,
   readOnly,
   canStart,
+  velocityAverage,
   onEdit,
   onStart,
   onClose,
@@ -240,6 +248,7 @@ function SprintSection({
   projectId: string;
   readOnly: boolean;
   canStart: boolean;
+  velocityAverage: number | null;
   onEdit: () => void;
   onStart: () => void;
   onClose: () => void;
@@ -275,9 +284,22 @@ function SprintSection({
                 ? `${sprint.completedCount ?? 0} erledigt · ${sprint.completedPoints ?? 0} SP`
                 : `${done.length}/${cards.length} erledigt · ${pointsOf(cards)} SP`}
             </span>
+            {!isClosed && velocityAverage !== null && pointsOf(cards) > velocityAverage * 1.2 && (
+              <span
+                className="chip chip--warn"
+                title="Mehr als 20 % über dem Durchschnitt der letzten Sprints. Das Team schafft vermutlich nicht alles."
+              >
+                über Velocity (Ø {Math.round(velocityAverage)} SP)
+              </span>
+            )}
           </div>
           {sprint.goal && <p className="sprint__goal">{sprint.goal}</p>}
         </div>
+        {!readOnly && sprint.state !== 'planned' && (
+          <Link className="btn btn--sm sprint__retro-link" href={`/projects/${projectId}/sprints/${sprint.number}`}>
+            Review & Retro
+          </Link>
+        )}
         {!readOnly && !isClosed && (
           <div className="sprint__actions">
             <button type="button" className="btn btn--ghost btn--icon btn--sm" onClick={onEdit} title="Bearbeiten" aria-label={`${sprint.name} bearbeiten`}>
@@ -315,6 +337,7 @@ function SprintSection({
           </div>
         )}
       </header>
+      {sprint.state !== 'planned' && cards.length > 0 && <SprintBurndown sprint={sprint} cards={cards} />}
       <div className="sprint__rows">
         {cards.length === 0 && (
           <p className="sprints__empty">{readOnly || isClosed ? 'Keine Aufgaben.' : 'Aufgaben hierher ziehen.'}</p>

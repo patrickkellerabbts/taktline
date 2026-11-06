@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/db';
-import type { BoardCard, BoardPerson } from '@/components/board/BoardView';
+import type { BoardCard, BoardPerson, BoardTask } from '@/components/board/BoardView';
 import { stripGanttMeta } from '@/lib/gitlab/meta';
 import { columnForIssue, isReservedLabel, isStory, labelNames, sprintNumberOf } from './board';
 import { loadProjectSprints } from './sprints';
@@ -15,7 +15,8 @@ export async function loadProjectBoard(projectId: string, audience: 'member' | '
       labels: { orderBy: { name: 'asc' }, select: { name: true, color: true } },
       workPackages: {
         // Summary-Tasks sind Container im Gantt, keine Arbeit auf dem Board.
-        where: { deletedAt: null, isSummary: false },
+        // Tasks hängen unter ihrer Story; nur verwaiste stehen als eigene Karte.
+        where: { deletedAt: null, isSummary: false, OR: [{ isTask: false }, { storyId: null }] },
         // Noch nie einsortierte Karten stehen am Ende, nach Issue-Nummer.
         orderBy: [{ boardRank: { sort: 'asc', nulls: 'last' } }, { gitlabIssueIid: 'asc' }],
         select: {
@@ -30,11 +31,44 @@ export async function loadProjectBoard(projectId: string, audience: 'member' | '
           endDate: true,
           isUnscheduled: true,
           storyPoints: true,
+          closedAt: true,
         },
       },
     },
   });
   if (!project) return null;
+
+  const taskRows = await prisma.workPackage.findMany({
+    where: { projectId, deletedAt: null, isTask: true, storyId: { not: null } },
+    orderBy: [{ boardRank: { sort: 'asc', nulls: 'last' } }, { gitlabIssueIid: 'asc' }],
+    select: {
+      id: true,
+      gitlabIssueIid: true,
+      titleCache: true,
+      stateCache: true,
+      labelsCache: true,
+      assigneesCache: true,
+      estimateSeconds: true,
+      spentSeconds: true,
+      closedAt: true,
+      storyId: true,
+    },
+  });
+  const tasksByStory = new Map<string, BoardTask[]>();
+  for (const t of taskRows) {
+    const list = tasksByStory.get(t.storyId!) ?? [];
+    list.push({
+      id: t.id,
+      iid: t.gitlabIssueIid,
+      title: t.titleCache,
+      column: columnForIssue(t.stateCache, labelNames(t.labelsCache)),
+      assignees: parsePeople(t.assigneesCache).map((a) => (audience === 'guest' ? { ...a, avatarUrl: undefined } : a)),
+      estimateSeconds: t.estimateSeconds,
+      spentSeconds: t.spentSeconds,
+      closedAt: t.closedAt ? t.closedAt.toISOString() : null,
+    });
+    tasksByStory.set(t.storyId!, list);
+  }
 
   const sprints = await loadProjectSprints(projectId);
   const sprintNumbers = new Set(sprints.map((s) => s.number));
@@ -63,6 +97,8 @@ export async function loadProjectBoard(projectId: string, audience: 'member' | '
       startDate: wp.isUnscheduled ? null : wp.startDate.toISOString().slice(0, 10),
       endDate: wp.isUnscheduled ? null : wp.endDate.toISOString().slice(0, 10),
       story: story ? fields : null,
+      tasks: tasksByStory.get(wp.id) ?? [],
+      closedAt: wp.closedAt ? wp.closedAt.toISOString() : null,
     };
   });
 
