@@ -1040,18 +1040,29 @@ a.sprint-row__title:hover { text-decoration: underline; }
 .poker__hand-wrap { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 0 4px; }
 .poker__hand { display: flex; justify-content: center; padding: 30px 20px 40px; }
 .poker__hand-card {
-  appearance: none; border: 0; background: none; padding: 0; margin: 0 -1px; cursor: pointer;
+  appearance: none; border: 0; background: none; margin: -32px -1px 0; cursor: pointer;
+  /* Oben 32px durchsichtige Klickfläche: Dort landet die angehobene Karte, der
+     Hover bleibt also bestehen, wenn die Maus ihr folgt. */
+  padding: 32px 0 0;
   transform: translateY(var(--fan-y)) rotate(var(--fan-rot)); transform-origin: 50% 120%;
-  transition: transform 180ms cubic-bezier(.2,.8,.3,1.2), filter 180ms; position: relative; z-index: 1;
-  border-radius: 10px;
+  position: relative; z-index: 1; border-radius: 10px;
 }
-.poker__hand-card:hover:not(:disabled), .poker__hand-card:focus-visible {
-  transform: translateY(calc(var(--fan-y) - 22px)) rotate(var(--fan-rot)) scale(1.06); z-index: 3;
+.poker__hand-lift {
+  display: block; border-radius: 10px;
+  transition: transform 180ms cubic-bezier(.2,.8,.3,1.2), filter 180ms;
 }
+.poker__hand-card:hover:not(:disabled), .poker__hand-card:focus-visible { z-index: 3; }
+.poker__hand-card:hover:not(:disabled) .poker__hand-lift,
+.poker__hand-card:focus-visible .poker__hand-lift { transform: translateY(-22px) scale(1.06); }
 .poker__hand-card:focus-visible { outline: none; }
 .poker__hand-card:focus-visible .pcard { box-shadow: 0 0 0 3px var(--accent-ring), var(--shadow-2); }
-.poker__hand-card[aria-pressed='true'] { transform: translateY(calc(var(--fan-y) - 30px)) rotate(0deg) scale(1.08); z-index: 4; }
-.poker__hand-card:disabled { cursor: default; filter: grayscale(0.6) opacity(0.55); }
+.poker__hand-card[aria-pressed='true'] { z-index: 4; }
+/* Gelegte Karte steht gerade: die Fächer-Drehung wird hier aufgehoben. */
+.poker__hand-card[aria-pressed='true'] .poker__hand-lift {
+  transform: translateY(-30px) rotate(calc(var(--fan-rot) * -1)) scale(1.08);
+}
+.poker__hand-card:disabled { cursor: default; }
+.poker__hand-card:disabled .poker__hand-lift { filter: grayscale(0.6) opacity(0.55); }
 .poker__hand-hint { font-size: 11.5px; color: var(--color-ink-3); }
 
 .poker__intro { margin: auto; max-width: 520px; text-align: center; padding: 30px 10px; }
@@ -1138,7 +1149,7 @@ a.sprint-row__title:hover { text-decoration: underline; }
 @keyframes poker-glow { 50% { transform: translateY(-4px); } }
 
 @media (prefers-reduced-motion: reduce) {
-  .pcard__inner, .poker__hand-card { transition: none; }
+  .pcard__inner, .poker__hand-lift { transition: none; }
   .pcard[data-highlight], .poker__consensus, .poker__slot span { animation: none; }
 }
 
@@ -1146,7 +1157,7 @@ a.sprint-row__title:hover { text-decoration: underline; }
   .poker { flex-direction: column; }
   .poker__list { width: auto; max-height: 220px; }
   .poker__hand { overflow-x: auto; justify-content: flex-start; max-width: 100%; padding-left: 12px; }
-  .poker__hand-card { transform: none; margin: 0 3px; }
+  .poker__hand-card { transform: none; margin: -32px 3px 0; }
 }
 
 .sr-only {

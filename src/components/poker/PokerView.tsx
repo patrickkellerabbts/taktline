@@ -499,7 +499,11 @@ function Hand({
               disabled={disabled}
               onClick={() => onPlay(card.value)}
             >
-              <PokerCard value={card.value} size="hand" selected={myVote === card.value} />
+              {/* Nur die Karte hebt sich, die Klickfläche bleibt stehen: sonst rutscht
+                  die Karte unter der Maus weg und das Anheben flackert. */}
+              <span className="poker__hand-lift">
+                <PokerCard value={card.value} size="hand" selected={myVote === card.value} />
+              </span>
             </button>
           );
         })}
