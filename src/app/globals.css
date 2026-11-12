@@ -1216,6 +1216,9 @@ a.sprint-row__title:hover { text-decoration: underline; }
 .board__tasks { display: flex; align-items: center; gap: 6px; font-size: 10.5px; color: var(--color-ink-3); margin-top: 6px; }
 .board__tasks-bar { flex: 0 0 48px; height: 4px; border-radius: 2px; background: var(--color-surface-3); overflow: hidden; }
 .board__tasks-bar span { display: block; height: 100%; background: var(--color-status-done); border-radius: 2px; }
+.board__close-hint { display: flex; align-items: center; gap: 4px; margin-top: 6px; padding: 2px 6px; border-radius: 4px; font-size: 10.5px; font-weight: 500; color: #1a7f37; background: #e6f4ea; width: fit-content; }
+.board__close-hint-next { color: var(--color-ink-3); font-weight: 400; }
+.taskboard__story .board__close-hint { margin-top: 4px; }
 
 /* Tasks im Story-Dialog */
 .story-tasks { border-top: 1px solid var(--color-border); padding-top: 12px; display: flex; flex-direction: column; gap: 8px; }
@@ -1440,3 +1443,47 @@ a.sprint-row__title:hover { text-decoration: underline; }
 .my-tasks__title .mono { color: var(--color-ink-4); font-size: 11px; }
 .my-tasks__h { font-size: 11.5px; color: var(--color-ink-3); }
 .my-tasks__actions { display: inline-flex; gap: 4px; }
+
+/* ─── Projektstrukturplan ─────────────────────────────────────────── */
+.psp { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 10px; }
+.psp__toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.psp__hint { font-size: 11px; color: var(--color-ink-3); }
+.psp__export { display: flex; gap: 4px; }
+.psp__error { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: var(--r-2); background: #fdecec; color: #a61b1b; font-size: 12px; }
+.psp__add { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 10px 12px; }
+.psp__add .input:not([type="date"]) { flex: 1 1 260px; }
+.psp__add-label { font-size: 12px; color: var(--color-ink-3); flex-basis: 100%; }
+.psp__date { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--color-ink-3); }
+.psp__body { flex: 1; min-height: 0; display: flex; gap: 12px; }
+.psp__main { flex: 1; min-width: 0; overflow: auto; position: relative; }
+.psp__canvas { padding: 4px; width: max-content; min-width: 100%; display: flex; justify-content: center; }
+.psp__canvas g[data-iid]:hover rect:first-of-type { stroke: var(--color-accent); }
+.psp__offscreen { position: absolute; left: -100000px; top: 0; width: 1px; height: 1px; overflow: hidden; }
+.psp__empty { padding: 32px; text-align: center; color: var(--color-ink-3); font-size: 13px; }
+.psp__empty b { color: var(--color-ink); }
+.psp__outline { list-style: none; margin: 0; padding: 6px 0; }
+.psp__outline li { display: flex; align-items: center; gap: 4px; padding-right: 8px; border-bottom: 1px solid var(--color-border); }
+.psp__outline li:last-child { border-bottom: none; }
+.psp__outline li[data-selected] { background: var(--color-accent-soft); }
+.psp__outline li[data-done] .psp__title { color: var(--color-ink-3); }
+.psp__done { color: var(--color-status-done); font-size: 12px; }
+.psp__row { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; padding: 7px 4px; background: none; border: none; text-align: left; font: inherit; color: inherit; cursor: pointer; }
+.psp__code { flex: 0 0 auto; min-width: 44px; font-size: 11px; color: var(--color-ink-3); }
+.psp__title { flex: 1; min-width: 0; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.psp__title--sum { font-weight: 600; }
+.psp__iid { font-size: 11px; color: var(--color-ink-3); }
+.psp__dates { font-size: 11px; color: var(--color-ink-3); white-space: nowrap; }
+.psp__bar { flex: 0 0 56px; height: 4px; border-radius: 2px; background: var(--color-surface-3); overflow: hidden; }
+.psp__bar span { display: block; height: 100%; background: var(--color-accent); border-radius: 2px; }
+.psp__outline li[data-done] .psp__bar span { background: var(--color-status-done); }
+.psp__row-actions { display: flex; gap: 2px; opacity: 0.35; transition: opacity 120ms; }
+.psp__outline li:hover .psp__row-actions, .psp__outline li:focus-within .psp__row-actions, .psp__outline li[data-selected] .psp__row-actions { opacity: 1; }
+.psp__panel { flex: 0 0 300px; align-self: flex-start; }
+.psp__panel-body { display: flex; flex-direction: column; gap: 6px; }
+.psp__panel-body .label { margin-top: 4px; }
+.psp__facts { display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; margin: 8px 0 4px; font-size: 12px; }
+.psp__facts dt { color: var(--color-ink-3); }
+.psp__facts dd { margin: 0; }
+.psp__panel-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+.psp__panel-note { font-size: 11px; color: var(--color-ink-3); margin: 6px 0 0; line-height: 1.45; }
+@media (prefers-reduced-motion: reduce) { .psp__row-actions { transition: none; } }

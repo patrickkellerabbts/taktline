@@ -15,7 +15,7 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from '@dnd-kit/core';
-import { CalendarDays, Check, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Plus, Square, X } from 'lucide-react';
+import { CalendarDays, Check, CheckCircle2, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Plus, Square, X } from 'lucide-react';
 import { moveBoardCardAction, updateWipLimitAction } from '@/app/projects/[id]/board/actions';
 import { WIP_COLUMNS, type FlowDay, type WipLimits } from '@/lib/agile/flow-shared';
 import { CumulativeFlow } from './CumulativeFlow';
@@ -26,7 +26,7 @@ import type { SprintInfo } from '@/lib/agile/sprints';
 import { StoryDialog } from './StoryDialog';
 import { TaskBoard } from './TaskBoard';
 import { MyTasks } from './MyTasks';
-import { formatHoursFromSeconds, taskProgress } from '@/lib/agile/tasks';
+import { formatHoursFromSeconds, storyCloseHint, taskProgress } from '@/lib/agile/tasks';
 
 export type BoardPerson = { id: number; username: string; name: string; avatarUrl?: string };
 export type BoardLabel = { name: string; color?: string };
@@ -759,6 +759,7 @@ function CardBody({ card, dragging = false }: { card: BoardCard; dragging?: bool
   const criteria = card.story?.criteria ?? [];
   const criteriaDone = criteria.filter((c) => c.done).length;
   const progress = taskProgress(card.tasks);
+  const closeHint = storyCloseHint(card.column, progress);
   return (
     <article className="board__card" data-dragging={dragging ? '' : undefined}>
       <div className="board__card-meta">
@@ -783,6 +784,13 @@ function CardBody({ card, dragging = false }: { card: BoardCard; dragging?: bool
         </div>
       )}
       {progress.total > 0 && <CardTasks card={card} progress={progress} dragging={dragging} />}
+      {closeHint && (
+        <div className="board__close-hint" title={closeHint.title}>
+          <CheckCircle2 size={12} />
+          {closeHint.label}
+          <span className="board__close-hint-next">{card.column === 'review' ? '→ DoD prüfen' : '→ Review'}</span>
+        </div>
+      )}
       <div className="board__card-ft">
         {card.endDate && (
           <span className="mono board__card-date" title={`${card.startDate} bis ${card.endDate}`}>

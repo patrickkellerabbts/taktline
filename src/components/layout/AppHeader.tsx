@@ -9,7 +9,7 @@ import { isDemoMode } from '@/lib/demo/mode';
 
 type Props = {
   username?: string | null;
-  active?: 'projects' | 'gantt' | 'board' | 'sprints' | 'resources' | 'reports' | 'risks' | 'journal' | 'poker';
+  active?: 'projects' | 'gantt' | 'psp' | 'board' | 'sprints' | 'resources' | 'reports' | 'risks' | 'journal' | 'poker';
 };
 
 export function AppHeader({ username, active = 'projects' }: Props) {
@@ -62,6 +62,14 @@ export function AppHeader({ username, active = 'projects' }: Props) {
           draggable={false}
         >
           Gantt
+        </Link>
+        <Link
+          href="/psp"
+          aria-current={active === 'psp' ? 'page' : undefined}
+          draggable={false}
+          title="Projektstrukturplan"
+        >
+          PSP
         </Link>
         <Link
           href="/board"

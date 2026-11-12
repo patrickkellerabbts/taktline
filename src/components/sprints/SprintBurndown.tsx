@@ -8,8 +8,12 @@ import type { SprintInfo } from '@/lib/agile/sprints';
 // Gerechnet aus den Abschlusszeitpunkten in GitLab, deshalb ohne tägliche
 // Schnappschüsse. Grenze: Der Umfang ist der heutige. Wer mitten im Sprint
 // Tasks ergänzt oder neu schätzt, verschiebt die ganze Kurve.
+//
+// Drei Einheiten: Stunden (Task-Schätzungen), Tasks (Anzahl, braucht keine
+// Schätzung) und Story Points. SP fallen erst, wenn die ganze Story fertig
+// ist; Tasks und Stunden zeigen den Fortschritt innerhalb des Sprints.
 
-type Unit = 'hours' | 'points';
+type Unit = 'hours' | 'tasks' | 'points';
 
 type Point = { date: string; remaining: number | null; ideal: number };
 
@@ -41,7 +45,9 @@ function series(sprint: SprintInfo, cards: BoardCard[], unit: Unit, today: strin
   const items =
     unit === 'hours'
       ? cards.flatMap((c) => c.tasks).map((t) => ({ size: (t.estimateSeconds ?? 0) / 3600, closedAt: t.closedAt }))
-      : cards.filter((c) => c.isStory).map((c) => ({ size: c.storyPoints ?? 0, closedAt: c.closedAt }));
+      : unit === 'tasks'
+        ? cards.flatMap((c) => c.tasks).map((t) => ({ size: 1, closedAt: t.closedAt }))
+        : cards.filter((c) => c.isStory).map((c) => ({ size: c.storyPoints ?? 0, closedAt: c.closedAt }));
   const total = items.reduce((sum, i) => sum + i.size, 0);
   const span = days(sprint.startDate, sprint.endDate);
   const last = Math.max(1, span.length - 1);
@@ -58,12 +64,18 @@ function series(sprint: SprintInfo, cards: BoardCard[], unit: Unit, today: strin
 
 function fmt(n: number, unit: Unit): string {
   const v = Number.isInteger(n) ? String(n) : n.toFixed(1);
-  return unit === 'hours' ? `${v} h` : `${v} SP`;
+  if (unit === 'hours') return `${v} h`;
+  if (unit === 'tasks') return `${v} ${n === 1 ? 'Task' : 'Tasks'}`;
+  return `${v} SP`;
 }
 
 export function SprintBurndown({ sprint, cards }: { sprint: SprintInfo; cards: BoardCard[] }) {
-  const hasHours = cards.some((c) => c.tasks.some((t) => t.estimateSeconds));
-  const [unit, setUnit] = useState<Unit>(hasHours ? 'hours' : 'points');
+  const tasks = cards.flatMap((c) => c.tasks);
+  const hasTasks = tasks.length > 0;
+  const hasHours = tasks.some((t) => t.estimateSeconds);
+  const unestimated = tasks.filter((t) => !t.estimateSeconds).length;
+  // Stunden nur, wenn alles geschätzt ist; sonst fehlt ein Teil der Arbeit in der Kurve.
+  const [unit, setUnit] = useState<Unit>(hasHours && unestimated === 0 ? 'hours' : hasTasks ? 'tasks' : 'points');
   const [hover, setHover] = useState<number | null>(null);
   const today = isoDay(new Date());
   const { points, total } = useMemo(() => series(sprint, cards, unit, today), [sprint, cards, unit, today]);
@@ -71,7 +83,7 @@ export function SprintBurndown({ sprint, cards }: { sprint: SprintInfo; cards: B
   if (total === 0) {
     return (
       <p className="burndown__empty">
-        Burndown erscheint, sobald die Stories im Sprint {hasHours ? 'geschätzt' : 'Story Points oder geschätzte Tasks'} haben.
+        Burndown erscheint, sobald die Stories im Sprint Story Points oder Tasks haben.
       </p>
     );
   }
@@ -97,10 +109,18 @@ export function SprintBurndown({ sprint, cards }: { sprint: SprintInfo; cards: B
           </span>
         )}
         {behind && <span className="chip chip--warn">hinter der Ideallinie</span>}
+        {unit === 'hours' && unestimated > 0 && (
+          <span className="chip" title="Diese Tasks zählen im Stunden-Burndown nicht mit. Die Ansicht „Tasks“ zählt sie.">
+            {unestimated} ohne Schätzung
+          </span>
+        )}
         <div style={{ flex: 1 }} />
         <div className="seg" role="group" aria-label="Einheit">
           <button type="button" aria-pressed={unit === 'hours'} onClick={() => setUnit('hours')} disabled={!hasHours}>
             Stunden
+          </button>
+          <button type="button" aria-pressed={unit === 'tasks'} onClick={() => setUnit('tasks')} disabled={!hasTasks}>
+            Tasks
           </button>
           <button type="button" aria-pressed={unit === 'points'} onClick={() => setUnit('points')}>
             Story Points

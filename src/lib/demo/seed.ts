@@ -158,7 +158,7 @@ const TASKS: Array<{ story: string; iid: number; title: string; hours: number; a
   { story: 's3', iid: 62, title: 'Cronjob veröffentlicht fällige Beiträge', hours: 6, assignee: 104, column: 'doing' },
   { story: 's3', iid: 63, title: 'Vorschau-Ansicht vor Veröffentlichung', hours: 4, assignee: 103 },
   { story: 's4', iid: 64, title: 'API-Endpunkt Kontaktanfragen', hours: 3, assignee: 102, closed: -3 },
-  { story: 's4', iid: 65, title: 'Liste im Backend mit Sortierung', hours: 4, assignee: 102, column: 'review' },
+  { story: 's4', iid: 65, title: 'Liste im Backend mit Sortierung', hours: 4, assignee: 102, closed: -1 },
   { story: 's2', iid: 66, title: 'Anmeldeformular im Footer', hours: 2, assignee: 105, closed: -1 },
   { story: 's2', iid: 67, title: 'Double-Opt-in-Mail versenden', hours: 4, assignee: 105 },
   { story: 's2', iid: 68, title: 'Abmeldelink und Bestätigungsseite', hours: 3, assignee: 101 },

@@ -27,6 +27,21 @@ export function taskProgress(tasks: BoardTask[]): TaskProgress {
   return { total: tasks.length, done, estimateSeconds: estimate, remainingSeconds: remaining, unestimated };
 }
 
+/**
+ * Alle Tasks fertig, die Story aber noch offen: Meist fehlt nur der Schritt
+ * nach Review bzw. die Prüfung gegen die Definition of Done. Gibt den Hinweis
+ * zurück, der dafür auf der Karte steht, sonst null.
+ */
+export function storyCloseHint(
+  column: BoardTask['column'],
+  progress: TaskProgress,
+): { label: string; title: string } | null {
+  if (progress.total === 0 || progress.done < progress.total || column === 'done') return null;
+  return column === 'review'
+    ? { label: 'Alle Tasks erledigt', title: 'Story gegen Akzeptanzkriterien und Definition of Done prüfen, dann abschliessen.' }
+    : { label: 'Alle Tasks erledigt', title: 'Story nach Review schieben: Erst dann zählen ihre Story Points.' };
+}
+
 /** 5400 → "1.5 h", 0 → "0 h". */
 export function formatHoursFromSeconds(seconds: number): string {
   const hours = seconds / 3600;

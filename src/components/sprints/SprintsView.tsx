@@ -57,6 +57,13 @@ function addDaysIso(iso: string, days: number): string {
   return date.toISOString().slice(0, 10);
 }
 
+/** " · 9/14 Tasks", leer ohne Tasks. Zeigt Fortschritt, bevor Stories fertig sind. */
+function tasksLabel(cards: BoardCard[]): string {
+  const tasks = cards.flatMap((c) => c.tasks);
+  if (tasks.length === 0) return '';
+  return ` · ${tasks.filter((t) => t.column === 'done').length}/${tasks.length} Tasks`;
+}
+
 function pointsOf(cards: BoardCard[]): number {
   return cards.reduce((sum, c) => sum + (c.storyPoints ?? 0), 0);
 }
@@ -282,7 +289,7 @@ function SprintSection({
             <span className="mono tabnum">
               {isClosed
                 ? `${sprint.completedCount ?? 0} erledigt · ${sprint.completedPoints ?? 0} SP`
-                : `${done.length}/${cards.length} erledigt · ${pointsOf(cards)} SP`}
+                : `${done.length}/${cards.length} erledigt${tasksLabel(cards)} · ${pointsOf(cards)} SP`}
             </span>
             {!isClosed && velocityAverage !== null && pointsOf(cards) > velocityAverage * 1.2 && (
               <span

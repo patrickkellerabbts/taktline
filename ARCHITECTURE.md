@@ -122,6 +122,17 @@ Da GitLab das Konzept nicht kennt, wird zusätzlich ein `gantt::summary`-
 Label in GitLab gesetzt, damit auch direkte Issue-Reader das Konstrukt
 verstehen.
 
+### Projektstrukturplan
+
+Der PSP (`/projects/[id]/psp`) ist eine zweite Sicht auf genau diese
+Hierarchie, kein eigenes Modell. Bearbeiten läuft über dieselben Actions wie
+im Gantt (`createWorkPackageAction`, `updateWorkPackageAction` mit
+`parentIid`). Die Codes rechnet `buildPsp` in `lib/psp.ts` bei jedem Aufruf
+aus der Reihenfolge der Geschwister (Start, dann IID); die Taktline-CLI
+(`psp`) nutzt dieselbe Funktion, damit beide gleich nummerieren. Das
+Diagramm ist reines SVG mit festen Farben, damit PNG-, SVG- und PDF-Export
+ohne das App-Stylesheet gleich aussehen.
+
 ## Self-Sync vs. External-Sync — was gewinnt?
 
 Wenn ein Konflikt zwischen App und GitLab entsteht (z.B. App schreibt
@@ -202,7 +213,7 @@ Native GitLab-Tasks (Work Item Type „Task“) statt eigener Datenhaltung, dami
 - **Die Zuordnung zur Story** gibt es nur über GraphQL (`lib/gitlab/tasks.ts`). Der Sync holt alle Task-Eltern in einem Abruf, der Webhook fragt für einen einzelnen Task nach. Gespeichert wird sie als `storyId`, bewusst getrennt von `parentId` (Gantt-Hierarchie).
 - **Board:** Story-Karten zeigen den Task-Fortschritt und klappen die Tasks auf (abhaken direkt auf der Karte); das Taskboard hat eine Zeile pro Story mit Anlegen in der Zeile; „Meine Tasks“ filtert auf die angemeldete Person. Beim Verschieben nach Done nennt die DoD-Abfrage offene Tasks.
 - **Suche:** Tasks verlinken auf `board?task=<id>`; das Board klappt die Story auf, setzt den Sprint-Filter auf „Alle“ und hebt den Task hervor. Alte `gantt?wp=`-Links auf Tasks leiten dorthin um.
-- **Sprint-Burndown** aus den Abschlusszeitpunkten (`closedAt`) von Tasks (Stunden) oder Stories (SP). Ohne tägliche Schnappschüsse; der Umfang ist deshalb der heutige, spätere Neuschätzungen verschieben die ganze Kurve.
+- **Sprint-Burndown** aus den Abschlusszeitpunkten (`closedAt`) von Tasks (Stunden oder Anzahl) oder Stories (SP). Ohne tägliche Schnappschüsse; der Umfang ist deshalb der heutige, spätere Neuschätzungen verschieben die ganze Kurve. SP fallen erst, wenn eine Story fertig ist, und die Velocity bleibt bewusst so (keine anteiligen Punkte). Den Fortschritt innerhalb des Sprints zeigen die Tasks: als Einheit im Burndown, als Zähler im Sprint-Kopf und als Hinweis „Alle Tasks erledigt“ auf Stories, die nur noch auf Review oder DoD-Prüfung warten (`storyCloseHint` in `lib/agile/tasks.ts`).
 
 ## Sprint Review und Retrospektive
 
