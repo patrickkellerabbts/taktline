@@ -510,6 +510,8 @@ model RiskHistory {
   field    String
   oldValue String?
   newValue String?
+  // GitLab-Username, wenn ein Agent (Taktline-CLI) geändert hat; userId ist dann null.
+  agent    String?
 
   createdAt DateTime @default(now())
 

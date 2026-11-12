@@ -240,9 +240,9 @@ Schätzrunden pro User Story (`EstimationRound`, `EstimationVote`), Deck modifiz
 
 ## Agenten-API
 
-Für Daten, die nur in der Taktline-DB liegen, gibt es Routen unter `/api/agent/*` (Sprints, Arbeitsjournal). Der Agent schickt seinen GitLab-Token als Bearer-Token; `lib/agent/access.ts` prüft damit Konto, Projekt und Rolle in GitLab (Lesen ab Reporter, Schreiben ab Developer) und speichert ihn nicht. Eigene Taktline-Tokens gibt es bewusst nicht.
+Für Daten, die nur in der Taktline-DB liegen, gibt es Routen unter `/api/agent/*`: `sprints`, `journal`, `project` (Product Goal, DoD, WIP-Limits, Velocity, Meilensteine), `risks`, `retro`, `poker` und `reports` (`view=report|flow|audit`). Retro, Poker und Berichte sind nur lesbar: Retro-Karten und Schätzungen sind Sache des Teams. Der Agent schickt seinen GitLab-Token als Bearer-Token; `lib/agent/access.ts` prüft damit Konto, Projekt und Rolle in GitLab (Lesen ab Reporter, Schreiben ab Developer) und speichert ihn nicht. Eigene Taktline-Tokens gibt es bewusst nicht.
 
-Die Sprint-Regeln stehen einmal in `lib/agile/sprint-ops.ts` und gelten für Web-App und Agenten gleich. Der Unterschied ist nur der `Actor`: in der Web-App die angemeldete Person mit ihrem OAuth-Token, bei Agenten das Agent-Konto mit seinem eigenen Token. Im Audit-Log steht beim Agenten dessen GitLab-Username (`after.agent`).
+Die Regeln stehen jeweils einmal und gelten für Web-App und Agenten gleich: `lib/agile/sprint-ops.ts`, `lib/agile/frame-ops.ts` (Product Goal, DoD, WIP) und `lib/risks/ops.ts`. Risikoänderungen von Agenten tragen im Risiko-Verlauf `RiskHistory.agent` statt einer `userId`. Der Unterschied ist nur der `Actor`: in der Web-App die angemeldete Person mit ihrem OAuth-Token, bei Agenten das Agent-Konto mit seinem eigenen Token. Im Audit-Log steht beim Agenten dessen GitLab-Username (`after.agent`).
 
 ## Arbeitsjournal
 

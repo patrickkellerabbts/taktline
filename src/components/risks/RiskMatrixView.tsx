@@ -16,8 +16,8 @@ import { Plus, AlertTriangle, X } from 'lucide-react';
 import {
   createRiskAction,
   moveRiskAction,
-  type RiskStatus,
 } from '@/app/projects/[id]/risks/actions';
+import type { RiskStatus } from '@/lib/risks/ops';
 import { RiskInspector } from './RiskInspector';
 import { avatarColor, initials } from '@/components/gantt/AssigneeAvatars';
 

@@ -1,7 +1,7 @@
 'use server';
 
-import { z } from 'zod';
 import { auth } from '@/auth';
+import { setDefinitionOfDone, setProductGoal } from '@/lib/agile/frame-ops';
 import { prisma } from '@/lib/db';
 import { getGitlabClientForUser } from '@/lib/gitlab/client';
 import { GitlabTokenExpiredError } from '@/lib/auth/encrypted-adapter';
@@ -35,10 +35,6 @@ function failure(err: unknown, context: Record<string, unknown>, message: string
   }
   logger.error({ err: err instanceof Error ? err.message : String(err), ...context }, message);
   return { ok: false, error: message };
-}
-
-function revalidateProject(projectId: string) {
-  revalidateSprints(projectId);
 }
 
 async function sessionActor(): Promise<Actor | null> {
@@ -142,36 +138,18 @@ export async function assignToSprintAction(
 }
 
 // ─── Product Goal und Definition of Done ─────────────────────────────────────
-
-const ProductGoalSchema = z.string().trim().max(2000, 'Das Product Goal ist zu lang');
-const DodSchema = z
-  .array(z.string().trim().min(1).max(200, 'Ein Punkt der Definition of Done ist zu lang'))
-  .max(20, 'Höchstens 20 Punkte');
+// Logik in lib/agile/frame-ops.ts, dieselbe nutzt die Agenten-API.
 
 export async function updateProductGoalAction(projectId: string, raw: string): Promise<ActionResult> {
   const session = await auth();
   if (!session?.user?.id) return { ok: false, error: 'Nicht angemeldet' };
-  const parsed = ProductGoalSchema.safeParse(raw);
-  if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
-  const updated = await prisma.project.updateMany({
-    where: { id: projectId },
-    data: { productGoal: parsed.data || null },
-  });
-  if (updated.count === 0) return { ok: false, error: 'Projekt nicht gefunden' };
-  revalidateProject(projectId);
-  return { ok: true };
+  const result = await setProductGoal({ userId: session.user.id }, projectId, raw);
+  return result.ok ? { ok: true } : result;
 }
 
 export async function updateDefinitionOfDoneAction(projectId: string, raw: string[]): Promise<ActionResult> {
   const session = await auth();
   if (!session?.user?.id) return { ok: false, error: 'Nicht angemeldet' };
-  const parsed = DodSchema.safeParse(raw.filter((item) => item.trim() !== ''));
-  if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
-  const updated = await prisma.project.updateMany({
-    where: { id: projectId },
-    data: { definitionOfDone: parsed.data },
-  });
-  if (updated.count === 0) return { ok: false, error: 'Projekt nicht gefunden' };
-  revalidateProject(projectId);
-  return { ok: true };
+  const result = await setDefinitionOfDone({ userId: session.user.id }, projectId, raw);
+  return result.ok ? { ok: true } : result;
 }

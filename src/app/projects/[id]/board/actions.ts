@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { auth } from '@/auth';
+import { setWipLimit } from '@/lib/agile/frame-ops';
 import { prisma } from '@/lib/db';
 import { getGitlabClientForUser } from '@/lib/gitlab/client';
 import { parseGanttMeta, serializeGanttMeta, stripGanttMeta, type GanttMeta } from '@/lib/gitlab/meta';
@@ -25,7 +26,6 @@ import {
 } from '@/lib/agile/board';
 import { buildStoryDescription, mergeCriteria, parseStoryDescription } from '@/lib/agile/story';
 import { recordBoardSnapshot } from '@/lib/agile/flow';
-import { parseWipLimits, WIP_COLUMNS } from '@/lib/agile/flow-shared';
 
 type ActionResult<T = object> =
   | ({ ok: true } & T)
@@ -468,16 +468,6 @@ export async function updateWipLimitAction(
 ): Promise<ActionResult> {
   const session = await auth();
   if (!session?.user?.id) return { ok: false, error: 'Nicht angemeldet' };
-  if (!WIP_COLUMNS.includes(column)) return { ok: false, error: 'Für diese Spalte gibt es kein Limit' };
-  if (limit !== null && (!Number.isInteger(limit) || limit < 1 || limit > 99)) {
-    return { ok: false, error: 'Das Limit muss eine ganze Zahl zwischen 1 und 99 sein' };
-  }
-  const project = await prisma.project.findUnique({ where: { id: projectId }, select: { wipLimits: true } });
-  if (!project) return { ok: false, error: 'Projekt nicht gefunden' };
-  const limits = parseWipLimits(project.wipLimits);
-  if (limit === null) delete limits[column];
-  else limits[column] = limit;
-  await prisma.project.update({ where: { id: projectId }, data: { wipLimits: limits } });
-  revalidateProject(projectId);
-  return { ok: true };
+  const result = await setWipLimit({ userId: session.user.id }, projectId, column, limit);
+  return result.ok ? { ok: true } : result;
 }
