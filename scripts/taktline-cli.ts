@@ -63,6 +63,16 @@ Arbeitsjournal (braucht TAKTLINE_URL):
          legt einen AI-Vorschlag an, den die Person in der Web-App prüft und übernimmt.
          Ein bestehender Vorschlag für den Tag wird ersetzt, ein eigener Eintrag nie.
 
+Sprints (liegen in Taktline, braucht TAKTLINE_URL; Schreiben mit --dry-run):
+  sprints                     alle Sprints mit Stand, Ziel und Review
+  sprint-create --name <text> --start <datum> --end <datum> [--goal <text>]
+  sprint-update <nr> [--name <text>] [--goal <text>] [--start <datum>] [--end <datum>]
+  sprint-start <nr>           höchstens ein Sprint läuft gleichzeitig
+  sprint-close <nr> --carry-over <nr|backlog>
+                              Unerledigtes wandert in Sprint <nr> oder ins Backlog
+  sprint-delete <nr>          nur leere, geplante Sprints
+  sprint-review <nr> [--outcome yes|partly|no|none] [--notes <text>]
+
 Tasks (native GitLab-Tasks unter einer Story, Schätzung in Stunden):
   tasks <story-iid>
   task-add <story-iid> --title <text> [--hours <h>] [--assignee <user-id>]
@@ -304,6 +314,11 @@ async function main() {
       technical: { type: 'string' },
       organizational: { type: 'string' },
       next: { type: 'string' },
+      name: { type: 'string' },
+      end: { type: 'string' },
+      notes: { type: 'string' },
+      outcome: { type: 'string' },
+      'carry-over': { type: 'string' },
     },
   });
   const [command, ...args] = positionals;
@@ -328,6 +343,20 @@ async function main() {
       fail(`GitLab GraphQL: ${body?.errors?.map((e) => e.message).join('; ') ?? `HTTP ${res.status}`}`);
     }
     return body.data;
+  };
+  // Alles, was nur in der Taktline-DB liegt (Sprints, Journal), geht über deren
+  // Agenten-API. Derselbe GitLab-Token weist den Agenten dort aus.
+  const taktline = async <T,>(method: 'GET' | 'POST', path: string, body?: Record<string, unknown>): Promise<T> => {
+    if (!taktlineUrl) fail(`TAKTLINE_URL fehlt (Umgebung oder ${CONFIG_FILE})`);
+    const url = new URL(path, taktlineUrl);
+    const res = await fetch(url, {
+      method,
+      headers: { Authorization: `Bearer ${token}`, ...(body ? { 'Content-Type': 'application/json' } : {}) },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    const data = (await res.json().catch(() => null)) as (T & { error?: string }) | null;
+    if (!res.ok || !data) fail(`Taktline antwortet mit HTTP ${res.status}: ${data?.error ?? 'unbekannter Fehler'}`);
+    return data;
   };
 
   if (command === 'projects') {
@@ -697,10 +726,91 @@ async function main() {
       return;
     }
 
+    case 'sprints': {
+      print(await taktline('GET', `/api/agent/sprints?project=${encodeURIComponent(String(project))}`));
+      return;
+    }
+
+    case 'sprint-create': {
+      if (!values.name?.trim()) fail('--name fehlt');
+      if (!values.start || !values.end) fail('--start und --end fehlen');
+      const payload = {
+        action: 'create',
+        project: String(project),
+        name: values.name,
+        goal: values.goal ?? '',
+        start: dateValue('start', values.start),
+        end: dateValue('end', values.end),
+      };
+      if (payload.end < payload.start) fail('--end darf nicht vor --start liegen');
+      if (dryRun) return print({ project, dryRun: true, request: payload });
+      print(await taktline('POST', '/api/agent/sprints', payload));
+      return;
+    }
+
+    case 'sprint-update':
+    case 'sprint-start':
+    case 'sprint-close':
+    case 'sprint-delete':
+    case 'sprint-review': {
+      if (!args[0]) fail('Die Sprint-Nummer fehlt');
+      const number = intValue('sprint', args[0], 1);
+      const action = command.slice('sprint-'.length);
+      const payload: Record<string, unknown> = { action, project: String(project), number };
+      if (action === 'update') {
+        if (values.name !== undefined) payload.name = values.name;
+        if (values.goal !== undefined) payload.goal = values.goal;
+        if (values.start !== undefined) payload.start = dateValue('start', values.start);
+        if (values.end !== undefined) payload.end = dateValue('end', values.end);
+        if (Object.keys(payload).length === 3) fail('Nichts zu ändern: --name, --goal, --start oder --end angeben');
+      }
+      if (action === 'close') {
+        const carry = values['carry-over'];
+        if (!carry) fail('--carry-over fehlt: Nummer eines geplanten Sprints oder "backlog"');
+        payload.carryOverTo = carry === 'backlog' ? 'backlog' : intValue('carry-over', carry, 1);
+      }
+      if (action === 'review') {
+        if (values.outcome !== undefined) {
+          if (!['yes', 'partly', 'no', 'none'].includes(values.outcome)) fail('--outcome muss yes, partly, no oder none sein');
+          payload.goalOutcome = values.outcome === 'none' ? null : values.outcome;
+        }
+        if (values.notes !== undefined) payload.reviewNotes = values.notes;
+        if (Object.keys(payload).length === 3) fail('Nichts zu ändern: --outcome oder --notes angeben');
+      }
+      if (dryRun) {
+        const { sprints } = await taktline<{ sprints: Array<{ number: number }> }>(
+          'GET',
+          `/api/agent/sprints?project=${encodeURIComponent(String(project))}`,
+        );
+        const current = sprints.find((s) => s.number === number);
+        if (!current) fail(`Sprint ${number} gibt es in diesem Projekt nicht`);
+        return print({ project, dryRun: true, sprint: current, request: payload });
+      }
+      print(await taktline('POST', '/api/agent/sprints', payload));
+      return;
+    }
+
     case 'sprint': {
       const issue = await loadIssue(iidArgument(args[0]));
       if (!args[1]) fail('Sprint-Nummer oder "none" fehlt');
       const target = args[1] === 'none' ? null : intValue('sprint', args[1], 1);
+      // Mit TAKTLINE_URL prüfen, ob es den Sprint gibt und er noch offen ist.
+      // Ein Label ohne passenden Sprint würde Taktline sonst still ignorieren.
+      if (taktlineUrl) {
+        const { sprints } = await taktline<{ sprints: Array<{ number: number; state: string }> }>(
+          'GET',
+          `/api/agent/sprints?project=${encodeURIComponent(String(project))}`,
+        );
+        const current = sprintNumberOf(issue.labels);
+        if (current !== null && sprints.find((s) => s.number === current)?.state === 'closed') {
+          fail(`#${issue.iid} gehört zum abgeschlossenen Sprint ${current} und bleibt dort`);
+        }
+        if (target !== null) {
+          const found = sprints.find((s) => s.number === target);
+          if (!found) fail(`Sprint ${target} gibt es nicht. Anlegen mit sprint-create`);
+          if (found.state === 'closed') fail(`Sprint ${target} ist abgeschlossen`);
+        }
+      }
       const { add, remove } = planSprintLabels(issue.labels, target);
       const payload: Record<string, unknown> = {};
       if (add.length > 0) payload.addLabels = add.join(',');

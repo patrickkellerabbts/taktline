@@ -226,6 +226,12 @@ Schätzrunden pro User Story (`EstimationRound`, `EstimationVote`), Deck modifiz
 - **Ergebnis:** Übernehmen schreibt `story_points` in den gantt-meta-Block (ganze Zahlen laut AGENTS.md, deshalb wird ½ als Vorschlag zu 1) und hält es an der Runde fest. Alte Runden bleiben als Verlauf.
 - **Gleichzeitigkeit:** Aufdecken ist ein bedingtes Update (`revealedAt IS NULL`), neue Runden sind über `(workPackageId, number)` eindeutig. Zwei gleichzeitige Klicks ergeben denselben Zustand.
 
+## Agenten-API
+
+Für Daten, die nur in der Taktline-DB liegen, gibt es Routen unter `/api/agent/*` (Sprints, Arbeitsjournal). Der Agent schickt seinen GitLab-Token als Bearer-Token; `lib/agent/access.ts` prüft damit Konto, Projekt und Rolle in GitLab (Lesen ab Reporter, Schreiben ab Developer) und speichert ihn nicht. Eigene Taktline-Tokens gibt es bewusst nicht.
+
+Die Sprint-Regeln stehen einmal in `lib/agile/sprint-ops.ts` und gelten für Web-App und Agenten gleich. Der Unterschied ist nur der `Actor`: in der Web-App die angemeldete Person mit ihrem OAuth-Token, bei Agenten das Agent-Konto mit seinem eigenen Token. Im Audit-Log steht beim Agenten dessen GitLab-Username (`after.agent`).
+
 ## Arbeitsjournal
 
 Pro Person und Projekt ein Eintrag je Arbeitstag (`JournalEntry`). GitLab kennt dafür kein Feld, die Daten liegen also nur in der Taktline-DB. Alle Angemeldeten lesen, schreiben dürfen Personen nur ihre eigenen Einträge; das prüfen die Server Actions. Lese-Links zeigen Journale nicht.

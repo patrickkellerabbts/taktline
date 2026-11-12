@@ -10,6 +10,7 @@ import { GitlabTokenExpiredError } from '@/lib/auth/encrypted-adapter';
 import { logger } from '@/lib/logger';
 import { sprintLabel } from '@/lib/agile/board';
 import { RETRO_VOTES_PER_PERSON } from '@/lib/agile/retro-shared';
+import { saveReview } from '@/lib/agile/sprint-ops';
 
 type ActionResult = { ok: true } | { ok: false; error: string };
 
@@ -28,24 +29,14 @@ function revalidate(projectId: string, number: number) {
   revalidatePath(`/projects/${projectId}/sprints`);
 }
 
-const ReviewSchema = z.object({
-  goalOutcome: z.enum(['yes', 'partly', 'no']).nullable(),
-  reviewNotes: z.string().trim().max(20_000, 'Die Notizen sind zu lang'),
-});
-
-export async function saveReviewAction(sprintId: string, raw: z.input<typeof ReviewSchema>): Promise<ActionResult> {
+export async function saveReviewAction(
+  sprintId: string,
+  raw: { goalOutcome: 'yes' | 'partly' | 'no' | null; reviewNotes: string },
+): Promise<ActionResult> {
   const session = await auth();
-  if (!session?.user?.id) return { ok: false, error: 'Nicht angemeldet' };
-  const parsed = ReviewSchema.safeParse(raw);
-  if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
-  const sprint = await sprintFor(sprintId);
-  if (!sprint) return { ok: false, error: 'Sprint nicht gefunden' };
-  await prisma.sprint.update({
-    where: { id: sprint.id },
-    data: { goalOutcome: parsed.data.goalOutcome, reviewNotes: parsed.data.reviewNotes || null },
-  });
-  revalidate(sprint.projectId, sprint.number);
-  return { ok: true };
+  const userId = session?.user?.id;
+  if (!userId) return { ok: false, error: 'Nicht angemeldet' };
+  return saveReview({ userId, gitlab: () => getGitlabClientForUser(userId) }, sprintId, raw);
 }
 
 const ItemSchema = z.object({
