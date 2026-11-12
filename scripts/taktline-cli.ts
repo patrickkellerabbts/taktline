@@ -17,7 +17,7 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { parseArgs, parseEnv } from 'node:util';
 import { Gitlab } from '@gitbeaker/rest';
 import {
@@ -35,6 +35,9 @@ import {
 } from '../src/lib/agile/board';
 import { buildStoryDescription, mergeCriteria } from '../src/lib/agile/story';
 import { buildPsp, pspOutline, type PspInput } from '../src/lib/psp';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { PspDiagram } from '../src/components/psp/PspDiagram';
 import {
   DependencyTypeSchema,
   parseGanttMeta,
@@ -104,6 +107,7 @@ Tasks (native GitLab-Tasks unter einer Story, Schätzung in Stunden):
 
 Projektstrukturplan (PSP = die Gantt-Hierarchie über parent_iid):
   psp [--text]                Baum mit PSP-Codes (1, 1.2, 1.2.3); --text als Gliederung
+  psp --svg [--out <datei>]   Baumdiagramm als SVG speichern (Standard: psp-<projekt>.svg)
                               Umhängen mit update <iid> --parent <iid> bzw. --clear parent,
                               Unterpaket mit create --parent <iid> --start <datum> --due <datum>
 
@@ -351,6 +355,8 @@ async function main() {
       outcome: { type: 'string' },
       'carry-over': { type: 'string' },
       text: { type: 'boolean' },
+      svg: { type: 'boolean' },
+      out: { type: 'string' },
       item: { type: 'string', multiple: true },
       probability: { type: 'string' },
       impact: { type: 'string' },
@@ -658,6 +664,19 @@ async function main() {
         });
       }
       const { roots, flat } = buildPsp(items);
+      if (values.svg) {
+        // Dasselbe Diagramm wie in der Web-App (PNG/SVG-Export dort), hier ohne Browser gerendert.
+        if (roots.length === 0) fail('Der PSP ist leer, es gibt nichts zu zeichnen');
+        const name = String(project);
+        const svg = renderToStaticMarkup(createElement(PspDiagram, { roots, projectName: name, selectedIid: null }));
+        const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'projekt';
+        const file = resolve(values.out ?? `psp-${slug}.svg`);
+        if (!file.toLowerCase().endsWith('.svg')) fail('--out muss auf .svg enden');
+        if (dryRun) return print({ project, dryRun: true, file, items: flat.length });
+        writeFileSync(file, `<?xml version="1.0" encoding="UTF-8"?>\n${svg}\n`);
+        print({ project, file, items: flat.length });
+        return;
+      }
       if (values.text) {
         console.log(pspOutline(roots, String(project)));
         return;

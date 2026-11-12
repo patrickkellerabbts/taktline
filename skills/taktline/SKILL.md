@@ -137,10 +137,11 @@ node ~/.claude/skills/taktline/taktline.mjs task-add 42 --title "Datenmodell anl
 
 ## Projektstrukturplan (PSP)
 
-Der PSP ist die Gantt-Hierarchie, also `parent_iid` im gantt-meta-Block, kein eigenes Datenmodell. `psp` zeigt den Baum mit Codes (1, 1.2, 1.2.3), `psp --text` als eingerückte Gliederung, z.B. für einen Bericht. Die Codes werden nicht gespeichert: Taktline nummeriert die Geschwister nach Start, dann nach Issue-Nummer. Umhängen oder neue Termine ändern deshalb die Codes. Nenne Pakete gegenüber dem Nutzer immer mit Issue-Nummer, nicht nur mit Code.
+Der PSP ist die Gantt-Hierarchie, also `parent_iid` im gantt-meta-Block, kein eigenes Datenmodell. `psp` zeigt den Baum mit Codes (1, 1.2, 1.2.3), `psp --text` als eingerückte Gliederung, `psp --svg [--out datei.svg]` speichert das Baumdiagramm als SVG, genau wie der Export in der Web-App (Standard: `psp-<projekt>.svg` im aktuellen Verzeichnis). Beides eignet sich für einen Bericht. Die Codes werden nicht gespeichert: Taktline nummeriert die Geschwister nach Start, dann nach Issue-Nummer. Umhängen oder neue Termine ändern deshalb die Codes. Nenne Pakete gegenüber dem Nutzer immer mit Issue-Nummer, nicht nur mit Code.
 
 ```bash
 node ~/.claude/skills/taktline/taktline.mjs psp --text
+node ~/.claude/skills/taktline/taktline.mjs psp --svg --out docs/psp.svg
 # Teilprojekt anlegen und Pakete darunter hängen
 node ~/.claude/skills/taktline/taktline.mjs create --title "Realisierung" --start 2026-12-01 --due 2027-01-31 --dry-run
 node ~/.claude/skills/taktline/taktline.mjs update 43 --parent 70 --dry-run
@@ -150,6 +151,7 @@ node ~/.claude/skills/taktline/taktline.mjs update 43 --clear parent
 
 - **Gliederung erst vorschlagen.** Eine neue PSP-Struktur zeigst du zuerst als Liste (Teilprojekte und welche Issues darunter kommen) und legst sie erst an, wenn der Nutzer zustimmt.
 - **Der Parent wird Summary-Task:** Er bekommt seine Termine aus den Kindern und erscheint im Gantt als Sammelbalken.
+- **SVG nur auf Wunsch speichern.** Es ist eine neue Datei im Arbeitsverzeichnis; nenn den Pfad vorher und überschreib keine bestehende Datei ohne Rückfrage.
 - **Tasks gehören nicht in den PSP.** Sie hängen über die GitLab-Hierarchie an ihrer Story, nie über `--parent`. Stories ohne Termin und ohne Parent zeigt der PSP nicht.
 
 ## Vorgehen
