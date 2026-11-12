@@ -322,7 +322,7 @@ Diese App ergänzt GitLab um Planungs-Daten, die GitLab CE nativ nicht kennt (St
 
 Format-Spec für direktes Editieren via `glab` CLI, REST-API oder KI-Agenten: siehe [`AGENTS.md`](./AGENTS.md).
 
-Agenten planen aus jedem Repo mit: `npm run skill:install` installiert den Claude-Code-Skill samt CLI global. Die Einrichtung steht in [`AGENTS.md`](./AGENTS.md#tools). Stories, Board-Spalten, Termine und Abhängigkeiten landen direkt in GitLab; Sprints anlegen, Risiken und Lese-Links gehen nur in der Web-App.
+Agenten planen aus jedem Repo mit: `npm run skill:install` installiert den Claude-Code-Skill samt CLI global. Die Einrichtung steht in [`AGENTS.md`](./AGENTS.md#tools). Stories, Tasks, Board-Spalten, Termine und Abhängigkeiten landen direkt in GitLab. Sprints (anlegen, ändern, starten, abschliessen, Review) und das Arbeitsjournal gehen über die Agenten-API von Taktline. Planning Poker, Retrospektiven, Risiken und Lese-Links gibt es nur in der Web-App.
 
 ---
 
