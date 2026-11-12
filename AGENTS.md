@@ -210,7 +210,7 @@ node ~/.claude/skills/taktline/taktline.mjs current
 node ~/.claude/skills/taktline/taktline.mjs move 42 doing --dry-run
 ```
 
-Sprints, das Arbeitsjournal und alles andere, was nur in der Taktline-DB liegt, erreicht die CLI über die Agenten-API von Taktline (`/api/agent/sprints`, `/api/agent/journal`). Dort weist derselbe GitLab-Token den Agenten aus; Lesen braucht die Reporter-, Schreiben die Developer-Rolle im Projekt.
+Alles, was nur in der Taktline-DB liegt, erreicht die CLI über die Agenten-API von Taktline: Sprints (`/api/agent/sprints`), Arbeitsjournal (`/api/agent/journal`), Scrum-Rahmen mit Product Goal, DoD, WIP-Limits, Velocity und Meilensteinen (`/api/agent/project`), Risiken (`/api/agent/risks`), Review und Retro (`/api/agent/retro`), Planning Poker (`/api/agent/poker`) sowie Berichte, Cumulative Flow und Audit-Log (`/api/agent/reports`). Retro, Poker und Auswertungen sind nur lesbar; Risiken lassen sich anlegen und bewerten, aber nicht löschen. Dort weist derselbe GitLab-Token den Agenten aus; Lesen braucht die Reporter-, Schreiben die Developer-Rolle im Projekt.
 
 Zugangsdaten stehen in `~/.config/taktline/agent.env` (`GITLAB_URL`, `GITLAB_TOKEN`, für das Arbeitsjournal auch `TAKTLINE_URL`). Das Zielprojekt kommt aus `GITLAB_PROJECT`, sonst aus `.taktline-project` im Repo (anlegen mit `link`), sonst aus einem Git-Remote auf dieser GitLab-Instanz. Ohne eindeutiges Projekt bricht die CLI ab.
 

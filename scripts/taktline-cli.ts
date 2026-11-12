@@ -74,6 +74,30 @@ Sprints (liegen in Taktline, braucht TAKTLINE_URL; Schreiben mit --dry-run):
   sprint-delete <nr>          nur leere, geplante Sprints
   sprint-review <nr> [--outcome yes|partly|no|none] [--notes <text>]
 
+Scrum-Rahmen (liegt in Taktline, braucht TAKTLINE_URL; Schreiben mit --dry-run):
+  frame                       Product Goal, Definition of Done, WIP-Limits, Velocity, Meilensteine
+  goal-set <text>             Product Goal setzen (leer = entfernen)
+  dod-set --item <text>...    Definition of Done ersetzen (ganze Liste angeben)
+  wip-set <todo|doing|review> <n|none>
+
+Risiken (liegen in Taktline; anlegen und bewerten, nicht löschen):
+  risks [--status <status>]   Register mit Bewertung vor/nach Massnahmen
+  risk <id>                   ein Risiko mit Verlauf; id = die ersten Zeichen aus "risks"
+  risk-create --title <text> --probability <1-5> --impact <1-5> [--category <text>]
+         [--description <text>] [--mitigation <text>] [--contingency <text>]
+         [--owner <username>] [--review <datum>] [--wp <iid>]... [--milestone <id>]...
+  risk-update <id> [dieselben Felder] [--status identified|in_progress|mitigated|accepted|occurred|closed]
+         [--probability-after <1-5> --impact-after <1-5>]
+         [--clear after,owner,review,mitigation,contingency,category,description]
+         --wp/--milestone ersetzen die ganze Verknüpfungsliste
+
+Nur lesen (Team-Rituale und Auswertungen):
+  retro <sprint-nr>           Review, Retro-Karten nach Punkten, Massnahmen und ihr Stand
+  poker [<story-iid>]         Schätzrunden; Karten erst nach dem Aufdecken
+  report                      Fortschritt, Überfälliges, Konflikte, Burndown, Baseline-Abweichung
+  flow [--days <n>]           Karten pro Spalte und Tag (Cumulative Flow)
+  audit [--limit <n>]         Änderungshistorie in Taktline
+
 Tasks (native GitLab-Tasks unter einer Story, Schätzung in Stunden):
   tasks <story-iid>
   task-add <story-iid> --title <text> [--hours <h>] [--assignee <user-id>]
@@ -327,6 +351,21 @@ async function main() {
       outcome: { type: 'string' },
       'carry-over': { type: 'string' },
       text: { type: 'boolean' },
+      item: { type: 'string', multiple: true },
+      probability: { type: 'string' },
+      impact: { type: 'string' },
+      'probability-after': { type: 'string' },
+      'impact-after': { type: 'string' },
+      category: { type: 'string' },
+      mitigation: { type: 'string' },
+      contingency: { type: 'string' },
+      owner: { type: 'string' },
+      review: { type: 'string' },
+      wp: { type: 'string', multiple: true },
+      milestone: { type: 'string', multiple: true },
+      status: { type: 'string' },
+      days: { type: 'string' },
+      limit: { type: 'string' },
     },
   });
   const [command, ...args] = positionals;
@@ -779,6 +818,152 @@ async function main() {
       if (target === 'done' && issue.state !== 'closed') payload.stateEvent = 'close';
       if (target !== 'done' && issue.state === 'closed') payload.stateEvent = 'reopen';
       await applyEdit(issue, payload);
+      return;
+    }
+
+    case 'frame': {
+      print(await taktline('GET', `/api/agent/project?project=${encodeURIComponent(String(project))}`));
+      return;
+    }
+
+    case 'goal-set': {
+      const goal = args.join(' ').trim();
+      const payload = { action: 'goal', project: String(project), goal };
+      if (dryRun) return print({ project, dryRun: true, request: payload });
+      print(await taktline('POST', '/api/agent/project', payload));
+      return;
+    }
+
+    case 'dod-set': {
+      const items = (values.item ?? []).map((i) => i.trim()).filter(Boolean);
+      if (items.length === 0) fail('Mindestens ein --item angeben; die Liste ersetzt die ganze Definition of Done');
+      const payload = { action: 'dod', project: String(project), items };
+      if (dryRun) return print({ project, dryRun: true, request: payload });
+      print(await taktline('POST', '/api/agent/project', payload));
+      return;
+    }
+
+    case 'wip-set': {
+      const column = args[0];
+      if (column !== 'todo' && column !== 'doing' && column !== 'review') fail('Spalte muss todo, doing oder review sein');
+      if (!args[1]) fail('Limit fehlt: Zahl oder none');
+      const limit = args[1] === 'none' ? null : intValue('limit', args[1], 1);
+      const payload = { action: 'wip', project: String(project), column, limit };
+      if (dryRun) return print({ project, dryRun: true, request: payload });
+      print(await taktline('POST', '/api/agent/project', payload));
+      return;
+    }
+
+    case 'risks': {
+      const data = await taktline<{ project: string; risks: Array<{ status: string }> }>(
+        'GET',
+        `/api/agent/risks?project=${encodeURIComponent(String(project))}`,
+      );
+      const status = values.status;
+      print(status ? { ...data, risks: data.risks.filter((r) => r.status === status) } : data);
+      return;
+    }
+
+    case 'risk': {
+      if (!args[0]) fail('Die Risiko-ID fehlt (aus "risks")');
+      print(
+        await taktline(
+          'GET',
+          `/api/agent/risks?project=${encodeURIComponent(String(project))}&id=${encodeURIComponent(args[0])}`,
+        ),
+      );
+      return;
+    }
+
+    case 'risk-create':
+    case 'risk-update': {
+      const create = command === 'risk-create';
+      const payload: Record<string, unknown> = { action: create ? 'create' : 'update', project: String(project) };
+      if (!create) {
+        if (!args[0]) fail('Die Risiko-ID fehlt (aus "risks")');
+        payload.id = args[0];
+      }
+      const score = (name: string, raw: string | undefined) => {
+        if (raw === undefined) return undefined;
+        const n = intValue(name, raw, 1);
+        if (n > 5) fail(`--${name} muss zwischen 1 und 5 liegen`);
+        return n;
+      };
+      if (values.title !== undefined) payload.title = values.title;
+      const probability = score('probability', values.probability);
+      const impact = score('impact', values.impact);
+      if (probability !== undefined) payload.probability = probability;
+      if (impact !== undefined) payload.impact = impact;
+      if (create && (!values.title?.trim() || probability === undefined || impact === undefined)) {
+        fail('risk-create braucht --title, --probability <1-5> und --impact <1-5>');
+      }
+      for (const [flag, key] of [
+        ['description', 'description'],
+        ['category', 'category'],
+        ['mitigation', 'mitigation'],
+        ['contingency', 'contingency'],
+        ['owner', 'owner'],
+      ] as const) {
+        if (values[flag] !== undefined) payload[key] = values[flag];
+      }
+      if (values.review !== undefined) payload.nextReview = dateValue('review', values.review);
+      if (values.wp) payload.workPackages = values.wp.map((v) => intValue('wp', v, 1));
+      if (values.milestone) payload.milestones = values.milestone.map((v) => intValue('milestone', v, 1));
+      if (!create) {
+        if (values.status !== undefined) {
+          const allowed = ['identified', 'in_progress', 'mitigated', 'accepted', 'occurred', 'closed'];
+          if (!allowed.includes(values.status)) fail(`--status muss ${allowed.join(', ')} sein`);
+          payload.status = values.status;
+        }
+        const pa = score('probability-after', values['probability-after']);
+        const ia = score('impact-after', values['impact-after']);
+        if (pa !== undefined) payload.probabilityAfter = pa;
+        if (ia !== undefined) payload.impactAfter = ia;
+        const clearable: Record<string, string[]> = {
+          after: ['probabilityAfter', 'impactAfter'],
+          owner: ['owner'],
+          review: ['nextReview'],
+          mitigation: ['mitigation'],
+          contingency: ['contingency'],
+          category: ['category'],
+          description: ['description'],
+        };
+        for (const field of (values.clear ?? '').split(',').map((f) => f.trim()).filter(Boolean)) {
+          if (!clearable[field]) fail(`--clear kennt ${Object.keys(clearable).join(', ')}`);
+          for (const key of clearable[field]) payload[key] = null;
+        }
+        if (Object.keys(payload).length === 3) fail('Nichts zu ändern');
+      }
+      if (dryRun) return print({ project, dryRun: true, request: payload });
+      print(await taktline('POST', '/api/agent/risks', payload));
+      return;
+    }
+
+    case 'retro': {
+      if (!args[0]) fail('Die Sprint-Nummer fehlt');
+      const number = intValue('sprint', args[0], 1);
+      print(await taktline('GET', `/api/agent/retro?project=${encodeURIComponent(String(project))}&sprint=${number}`));
+      return;
+    }
+
+    case 'poker': {
+      const story = args[0] ? `&story=${intValue('story', args[0], 1)}` : '';
+      print(await taktline('GET', `/api/agent/poker?project=${encodeURIComponent(String(project))}${story}`));
+      return;
+    }
+
+    case 'report':
+    case 'flow':
+    case 'audit': {
+      const extra =
+        command === 'flow' && values.days
+          ? `&days=${intValue('days', values.days, 1)}`
+          : command === 'audit' && values.limit
+            ? `&limit=${intValue('limit', values.limit, 1)}`
+            : '';
+      print(
+        await taktline('GET', `/api/agent/reports?project=${encodeURIComponent(String(project))}&view=${command}${extra}`),
+      );
       return;
     }
 

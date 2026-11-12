@@ -1,6 +1,6 @@
 ---
 name: taktline
-description: Plant und pflegt Projekte in Taktline und GitLab, aus jedem Repo – User Stories und Vorgänge anlegen, Karten auf dem Kanban-Board verschieben, Termine, Fortschritt, Story Points, Abhängigkeiten, Hierarchie und Ressourcen setzen, den Projektstrukturplan (PSP) anzeigen und gliedern, Stories in Tasks zerlegen, Sprints anlegen, ändern, starten, abschliessen und reviewen, Issues Sprints zuordnen, Arbeitsjournale auslesen und Journal-Einträge vorschlagen. Verwenden, wenn der Nutzer Taktline nennt oder Backlog, Board, Gantt, PSP, Stories, Sprints oder Arbeitsjournale eines Projekts planen oder einsehen will. Nicht für Risiken, Planning Poker, Retrospektiven und Lese-Links; diese gehen nur in der Web-App.
+description: Plant und pflegt Projekte in Taktline und GitLab, aus jedem Repo – User Stories und Vorgänge anlegen, Karten auf dem Kanban-Board verschieben, Termine, Fortschritt, Story Points, Abhängigkeiten, Hierarchie und Ressourcen setzen, den Projektstrukturplan (PSP) anzeigen und gliedern, Stories in Tasks zerlegen, Sprints anlegen, ändern, starten, abschliessen und reviewen, Issues Sprints zuordnen, Product Goal, Definition of Done und WIP-Limits pflegen, Risiken erfassen und bewerten, Retrospektiven, Planning-Poker-Runden, Berichte, Cumulative Flow und Änderungshistorie auslesen, Arbeitsjournale auslesen und Journal-Einträge vorschlagen. Verwenden, wenn der Nutzer Taktline nennt oder Backlog, Board, Gantt, PSP, Stories, Sprints, DoD, Risiken, Retro, Velocity, Berichte oder Arbeitsjournale eines Projekts planen oder einsehen will. Planning Poker spielen, Retro-Karten schreiben, Risiken löschen und Lese-Links gehen nur in der Web-App.
 ---
 
 # Taktline bedienen
@@ -86,6 +86,43 @@ $TL sprint-delete 4                                          # nur leer und gepl
 - **Das Sprint-Ziel formuliert das Team.** Schlag eines vor, aber setz es nur, wenn der Nutzer zustimmt.
 - **Review:** Das Ergebnis gegen das Sprint-Ziel (`--outcome yes|partly|no`) und die Notizen gibt der Nutzer vor. Erfinde kein Stakeholder-Feedback.
 
+## Scrum-Rahmen
+
+`frame` zeigt Product Goal, Definition of Done, WIP-Limits, Velocity der abgeschlossenen Sprints und die Meilensteine. Lies ihn vor Sprint Planning, Review oder Board-Fragen, statt von Annahmen auszugehen: Die DoD gilt für jede Story, die nach Done soll.
+
+```bash
+node ~/.claude/skills/taktline/taktline.mjs frame
+node ~/.claude/skills/taktline/taktline.mjs dod-set --item "Code reviewt" --item "Tests grün" --dry-run
+node ~/.claude/skills/taktline/taktline.mjs wip-set doing 3
+```
+
+- **Product Goal und DoD gehören dem Team.** Schlag Formulierungen vor, setz sie aber nur mit ausdrücklicher Zustimmung. `dod-set` ersetzt die ganze Liste, also vorher mit `frame` lesen und unveränderte Punkte mitgeben.
+- WIP-Limits gibt es für `todo`, `doing` und `review`; `none` entfernt eines.
+
+## Risiken
+
+Das Risikoregister liegt nur in Taktline. `risks` listet offene Risiken zuerst, nach aktuellem Score (Wahrscheinlichkeit × Auswirkung, je 1–5). `risk <id>` zeigt ein Risiko mit Verlauf; die ID sind die ersten Zeichen aus `risks`.
+
+```bash
+node ~/.claude/skills/taktline/taktline.mjs risks --status identified
+node ~/.claude/skills/taktline/taktline.mjs risk-create --title "Server-Abnahme verzögert sich" \
+  --probability 3 --impact 4 --category Organisation --mitigation "Termin früh fixieren" --wp 30 --dry-run
+node ~/.claude/skills/taktline/taktline.mjs risk-update 51ea01f8 --status mitigated --probability-after 2 --impact-after 2
+```
+
+- **Bewertungen kommen vom Team.** Schlag Wahrscheinlichkeit und Auswirkung mit Begründung vor; setz sie, wenn der Nutzer zustimmt oder Werte nennt.
+- **Löschen gibt es nicht.** Erledigte Risiken bekommen `--status closed`, eingetretene `occurred`.
+- `--owner` braucht einen Usernamen, der sich schon bei Taktline angemeldet hat. `--wp` und `--milestone` ersetzen jeweils die ganze Verknüpfungsliste.
+
+## Auswerten (nur lesen)
+
+- `retro <sprint-nr>`: Sprint Review (Ziel erreicht, Inkrement, Punkte) und Retro-Karten nach Stimmen, Massnahmen mit ihrem Issue. Fasse sie zusammen, schreib aber keine Retro-Karten: Das ist Sache des Teams.
+- `poker [<story-iid>]`: Schätzrunden. Karten siehst du erst nach dem Aufdecken. Schätz nicht selbst mit und übernimm keine Ergebnisse.
+- `report`: Fortschritt, Überfälliges, Konflikte, Burndown, Ressourcenwarnungen und die Abweichung zur Baseline (`endDeltaDays` > 0 heisst später als geplant).
+- `flow [--days 30]`: Karten pro Spalte und Tag. Wächst `doing` oder `review` stetig, staut sich dort Arbeit.
+- `audit [--limit 50]`: wer wann was in Taktline geändert hat, Agenten mit `(Agent)`.
+- `psp --text`: Projektstrukturplan als Gliederung (siehe oben).
+
 ## Tasks unter Stories
 
 Stories werden im Sprint Planning in Tasks zerlegt. Das sind native GitLab-Tasks unter der Story, die Schätzung steht in Stunden in der GitLab-Zeiterfassung. `tasks <story-iid>` zeigt sie mit den offenen Stunden. `task-add <story-iid> --title … --hours …` legt einen Task an.
@@ -152,4 +189,4 @@ $TL dep-add 42 --on 41 --type FS --lag 2
 
 ## Was nicht geht
 
-Issues löschen, Planning Poker, Retrospektiven, Product Goal und Definition of Done, Risiken, Lese-Links sowie bestätigte Journal-Einträge anlegen oder ändern. Verweise dafür auf die Web-App. Das Datenformat steht im Taktline-Repo in `AGENTS.md`.
+Issues und Risiken löschen, Planning Poker spielen oder Ergebnisse übernehmen, Retro-Karten und Stimmen, Lese-Links sowie bestätigte Journal-Einträge anlegen oder ändern. Verweise dafür auf die Web-App. Das Datenformat steht im Taktline-Repo in `AGENTS.md`.

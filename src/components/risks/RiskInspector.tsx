@@ -9,8 +9,8 @@ import {
   deleteRiskAction,
   setRiskLinkedWorkPackagesAction,
   setRiskLinkedMilestonesAction,
-  type RiskStatus,
 } from '@/app/projects/[id]/risks/actions';
+import type { RiskStatus } from '@/lib/risks/ops';
 import { CategoryInput } from './RiskMatrixView';
 import type { Risk, RiskLinkedWp, RiskLinkedMs, RiskOwner } from './RiskMatrixView';
 
