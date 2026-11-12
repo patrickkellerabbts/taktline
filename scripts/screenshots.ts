@@ -48,8 +48,13 @@ const SHOTS: Shot[] = [
   {
     file: 'board.png',
     path: `/projects/${DEMO_PROJECT_ID}/board`,
-    description: 'Kanban-Board mit dem aktiven Sprint',
-    viewport: { width: 1600, height: 640 },
+    description: 'Kanban-Board mit dem aktiven Sprint, eine Story mit aufgeklappten Tasks',
+    viewport: { width: 1600, height: 760 },
+    prepare: async (page) => {
+      const card = page.locator('.board__card', { hasText: 'Beiträge im Voraus terminieren' });
+      await card.getByRole('button', { name: /Tasks aufklappen/ }).click();
+      await page.waitForTimeout(300);
+    },
   },
   {
     file: 'story-dialog.png',

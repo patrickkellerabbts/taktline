@@ -256,7 +256,15 @@ export function SearchModal({ open, onClose }: Props) {
                     <span className="mono" style={{ color: 'var(--color-ink-3)', fontSize: 11 }}>
                       #{w.iid}
                     </span>
-                    <span style={{ flex: 1 }}>{w.title}</span>
+                    {w.task && <span className="chip">Task</span>}
+                    <span style={{ flex: 1, minWidth: 0 }}>
+                      {w.title}
+                      {w.task && w.storyTitle && (
+                        <span style={{ display: 'block', fontSize: 11, color: 'var(--color-ink-3)' }}>
+                          in: {w.storyTitle}
+                        </span>
+                      )}
+                    </span>
                     <span style={{ fontSize: 11, color: 'var(--color-ink-3)' }}>
                       {w.projectName}
                     </span>

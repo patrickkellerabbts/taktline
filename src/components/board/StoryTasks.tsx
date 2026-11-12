@@ -138,7 +138,7 @@ export function StoryTasks({ projectId, card, people }: Props) {
   );
 }
 
-function TaskForm({
+export function TaskForm({
   people,
   initial,
   pending,

@@ -95,7 +95,16 @@ export default async function GanttPage({ params, searchParams }: Props) {
   // Benachrichtigungen) führen deshalb zur Story auf dem Board.
   const selected = project.workPackages.find((wp) => wp.id === initialSelectedId);
   if (selected?.hidden) {
-    redirect(`/projects/${id}/board?story=${selected.id}`);
+    // Tasks liegen unter ihrer Story; die Story öffnet sich aufgeklappt.
+    const task = await prisma.workPackage.findUnique({
+      where: { id: selected.id },
+      select: { isTask: true, storyId: true },
+    });
+    redirect(
+      task?.isTask && task.storyId
+        ? `/projects/${id}/board?task=${selected.id}`
+        : `/projects/${id}/board?story=${selected.id}`,
+    );
   }
 
   return (

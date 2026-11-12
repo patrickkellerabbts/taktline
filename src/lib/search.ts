@@ -17,6 +17,9 @@ export type SearchWorkPackageHit = {
   iid: number;
   state: string;
   projectName: string;
+  /** Task unter einer User Story (GitLab Work Item „Task“). */
+  task: boolean;
+  storyTitle: string | null;
   href: string;
 };
 
@@ -72,6 +75,9 @@ export async function searchEverything(q: string): Promise<SearchResults> {
         gitlabIssueIid: true,
         stateCache: true,
         projectId: true,
+        isTask: true,
+        storyId: true,
+        story: { select: { titleCache: true } },
         project: { select: { nameCache: true } },
       },
     }),
@@ -104,7 +110,13 @@ export async function searchEverything(q: string): Promise<SearchResults> {
       iid: w.gitlabIssueIid,
       state: w.stateCache,
       projectName: w.project.nameCache,
-      href: `/projects/${w.projectId}/gantt?wp=${w.id}`,
+      // Tasks haben keinen Balken: Sie öffnen das Board mit ihrer Story aufgeklappt.
+      task: w.isTask,
+      storyTitle: w.story?.titleCache ?? null,
+      href:
+        w.isTask && w.storyId
+          ? `/projects/${w.projectId}/board?task=${w.id}`
+          : `/projects/${w.projectId}/gantt?wp=${w.id}`,
     })),
     milestones: milestones.map((m) => ({
       kind: 'milestone' as const,

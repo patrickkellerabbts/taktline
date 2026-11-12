@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState, useTransition } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   DndContext,
@@ -15,7 +15,7 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from '@dnd-kit/core';
-import { CalendarDays, Check, Plus, Square, X } from 'lucide-react';
+import { CalendarDays, Check, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Plus, Square, X } from 'lucide-react';
 import { moveBoardCardAction, updateWipLimitAction } from '@/app/projects/[id]/board/actions';
 import { WIP_COLUMNS, type FlowDay, type WipLimits } from '@/lib/agile/flow-shared';
 import { CumulativeFlow } from './CumulativeFlow';
@@ -25,6 +25,7 @@ import type { StoryFields } from '@/lib/agile/story';
 import type { SprintInfo } from '@/lib/agile/sprints';
 import { StoryDialog } from './StoryDialog';
 import { TaskBoard } from './TaskBoard';
+import { MyTasks } from './MyTasks';
 import { formatHoursFromSeconds, taskProgress } from '@/lib/agile/tasks';
 
 export type BoardPerson = { id: number; username: string; name: string; avatarUrl?: string };
@@ -67,6 +68,12 @@ type Props = {
   projectLabels: BoardLabel[];
   sprints: SprintInfo[];
   initialStoryId?: string;
+  /** Aus der Suche: Task, dessen Story aufgeklappt und hervorgehoben wird. */
+  initialTaskId?: string;
+  /** Startansicht, z.B. "mine" für „Meine Tasks“. */
+  initialView?: BoardViewMode;
+  /** GitLab-ID der angemeldeten Person, für „Meine Tasks“. */
+  currentGitlabUserId?: number | null;
   /** Lese-Link: nichts verschieben oder anlegen, Stories nur ansehen. */
   readOnly?: boolean;
   /** Wird abgefragt, wenn eine Story nach Done wandert. */
@@ -80,6 +87,18 @@ type Props = {
 type DialogState = { mode: 'create'; column: BoardColumnId } | { mode: 'edit'; cardId: string } | null;
 
 type SprintFilter = 'all' | 'none' | number;
+
+export type BoardViewMode = 'cards' | 'tasks' | 'mine' | 'flow';
+
+/** Aufklappen und Abhaken von Tasks direkt auf der Story-Karte. */
+type CardTasksApi = {
+  expanded: Set<string>;
+  toggleExpanded: (storyId: string) => void;
+  toggleTaskDone: (storyId: string, task: BoardTask) => void;
+  highlightTaskId: string | null;
+  readOnly: boolean;
+};
+const CardTasksContext = createContext<CardTasksApi | null>(null);
 
 const CARD_PREFIX = 'card:';
 const COLUMN_PREFIX = 'column:';
@@ -99,6 +118,9 @@ export function BoardView({
   projectLabels,
   sprints,
   initialStoryId,
+  initialTaskId,
+  initialView = 'cards',
+  currentGitlabUserId = null,
   readOnly = false,
   definitionOfDone = [],
   wipLimits = {},
@@ -110,12 +132,16 @@ export function BoardView({
   const [syncedCards, setSyncedCards] = useState(serverCards);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [onlyStories, setOnlyStories] = useState(false);
-  const [view, setView] = useState<'cards' | 'tasks' | 'flow'>('cards');
+  const [view, setView] = useState<BoardViewMode>(initialView);
+  // Story, die einen Task aus der Suche enthält: aufgeklappt und sichtbar.
+  const taskStoryId = initialTaskId ? serverCards.find((c) => c.tasks.some((t) => t.id === initialTaskId))?.id : undefined;
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set(taskStoryId ? [taskStoryId] : []));
+  const [highlightTaskId, setHighlightTaskId] = useState<string | null>(initialTaskId ?? null);
   const activeSprint = sprints.find((s) => s.state === 'active') ?? null;
   // Läuft ein Sprint, ist er das Board. Der Rest bleibt über die Auswahl erreichbar.
   const [sprintFilter, setSprintFilter] = useState<SprintFilter>(() => {
     const opened = serverCards.find((c) => c.id === initialStoryId);
-    if (opened) return 'all';
+    if (opened || taskStoryId) return 'all';
     return activeSprint?.number ?? 'all';
   });
   const [error, setError] = useState<string | null>(null);
@@ -194,6 +220,55 @@ export function BoardView({
     }
   }
 
+  /** Task verschieben, optimistisch in der Story, damit Balken und Ansichten sofort stimmen. */
+  function moveTask(storyId: string, task: BoardTask, target: BoardColumnId) {
+    if (task.column === target) return;
+    const previous = cards;
+    const closedAt = target === 'done' ? new Date().toISOString() : null;
+    setCards(
+      cards.map((c) =>
+        c.id === storyId
+          ? { ...c, tasks: c.tasks.map((t) => (t.id === task.id ? { ...t, column: target, closedAt } : t)) }
+          : c,
+      ),
+    );
+    setError(null);
+    startTransition(async () => {
+      const result = await moveBoardCardAction(projectId, task.id, target, [task.id]);
+      if (!result.ok) {
+        setCards(previous);
+        setError(result.error);
+        return;
+      }
+      router.refresh();
+    });
+  }
+
+  const cardTasksApi: CardTasksApi = {
+    expanded,
+    toggleExpanded: (id) =>
+      setExpanded((prev) => {
+        const next = new Set(prev);
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+        return next;
+      }),
+    toggleTaskDone: (storyId, task) => moveTask(storyId, task, task.column === 'done' ? 'todo' : 'done'),
+    highlightTaskId,
+    readOnly,
+  };
+  const storiesWithTasks = visible.filter((c) => c.tasks.length > 0);
+  const allExpanded = storiesWithTasks.length > 0 && storiesWithTasks.every((c) => expanded.has(c.id));
+
+  // Aus der Suche: Karte in den Blick holen, Hervorhebung nach ein paar Sekunden lösen.
+  useEffect(() => {
+    if (!initialTaskId) return;
+    const el = document.querySelector(`[data-task-id="${initialTaskId}"]`);
+    el?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    const timer = window.setTimeout(() => setHighlightTaskId(null), 4000);
+    return () => window.clearTimeout(timer);
+  }, [initialTaskId]);
+
   function commitMove(card: BoardCard, target: BoardColumnId, next: BoardCard[]) {
     const previous = cards;
     setCards(next);
@@ -230,10 +305,24 @@ export function BoardView({
           <button type="button" aria-pressed={view === 'tasks'} onClick={() => setView('tasks')}>
             Taskboard
           </button>
+          <button type="button" aria-pressed={view === 'mine'} onClick={() => setView('mine')} disabled={readOnly && !currentGitlabUserId}>
+            Meine Tasks
+          </button>
           <button type="button" aria-pressed={view === 'flow'} onClick={() => setView('flow')}>
             Fluss
           </button>
         </div>
+        {view === 'cards' && storiesWithTasks.length > 0 && (
+          <button
+            type="button"
+            className="btn btn--ghost btn--sm"
+            onClick={() => setExpanded(allExpanded ? new Set() : new Set(storiesWithTasks.map((c) => c.id)))}
+            title={allExpanded ? 'Tasks aller Stories zuklappen' : 'Tasks aller Stories aufklappen'}
+          >
+            {allExpanded ? <ChevronsDownUp size={12} /> : <ChevronsUpDown size={12} />}
+            {allExpanded ? 'Tasks zuklappen' : 'Tasks aufklappen'}
+          </button>
+        )}
         <label className="board__toggle" hidden={view !== 'cards'}>
           <input
             type="checkbox"
@@ -287,9 +376,20 @@ export function BoardView({
 
       {view === 'flow' && <CumulativeFlow days={flow} wipLimits={wipLimits} />}
 
+      {view === 'mine' && (
+        <MyTasks
+          stories={visible.filter((c) => c.isStory)}
+          gitlabUserId={currentGitlabUserId}
+          readOnly={readOnly}
+          onMove={moveTask}
+          onOpenStory={(id) => setDialog({ mode: 'edit', cardId: id })}
+        />
+      )}
+
       {view === 'tasks' && (
         <TaskBoard
           projectId={projectId}
+          people={people}
           stories={visible.filter((c) => c.isStory)}
           readOnly={readOnly}
           onOpenStory={(id) => setDialog({ mode: 'edit', cardId: id })}
@@ -297,6 +397,7 @@ export function BoardView({
       )}
 
       {view === 'cards' && (
+        <CardTasksContext.Provider value={cardTasksApi}>
         <DndContext
           id="board-dnd"
           sensors={sensors}
@@ -343,6 +444,7 @@ export function BoardView({
             {activeCard && <CardBody card={activeCard} dragging />}
           </DragOverlay>
         </DndContext>
+        </CardTasksContext.Provider>
       )}
 
       {readOnly && editedCard?.story && (
@@ -680,20 +782,7 @@ function CardBody({ card, dragging = false }: { card: BoardCard; dragging?: bool
           ))}
         </div>
       )}
-      {progress.total > 0 && (
-        <div
-          className="board__tasks"
-          title={`${progress.done} von ${progress.total} Tasks erledigt, ${formatHoursFromSeconds(progress.remainingSeconds)} geschätzt offen`}
-        >
-          <span className="board__tasks-bar">
-            <span style={{ width: `${(progress.done / progress.total) * 100}%` }} />
-          </span>
-          <span className="mono tabnum">
-            {progress.done}/{progress.total} Tasks
-            {progress.estimateSeconds > 0 && ` · ${formatHoursFromSeconds(progress.remainingSeconds)} offen`}
-          </span>
-        </div>
-      )}
+      {progress.total > 0 && <CardTasks card={card} progress={progress} dragging={dragging} />}
       <div className="board__card-ft">
         {card.endDate && (
           <span className="mono board__card-date" title={`${card.startDate} bis ${card.endDate}`}>
@@ -791,5 +880,83 @@ function StoryDetails({
         </div>
       </div>
     </div>
+  );
+}
+
+/** Fortschritt einer Story; mit Klick klappen die Tasks direkt auf der Karte auf. */
+function CardTasks({
+  card,
+  progress,
+  dragging,
+}: {
+  card: BoardCard;
+  progress: ReturnType<typeof taskProgress>;
+  dragging: boolean;
+}) {
+  const api = useContext(CardTasksContext);
+  const open = Boolean(api && !dragging && api.expanded.has(card.id));
+  const summary = (
+    <>
+      {api && !dragging && (open ? <ChevronDown size={12} /> : <ChevronRight size={12} />)}
+      <span className="board__tasks-bar">
+        <span style={{ width: `${(progress.done / progress.total) * 100}%` }} />
+      </span>
+      <span className="mono tabnum">
+        {progress.done}/{progress.total} Tasks
+        {progress.estimateSeconds > 0 && ` · ${formatHoursFromSeconds(progress.remainingSeconds)} offen`}
+      </span>
+    </>
+  );
+  // Klicks und Tasten hier dürfen weder den Story-Dialog öffnen noch ein Ziehen starten.
+  const stop = (e: React.SyntheticEvent) => e.stopPropagation();
+  return (
+    <>
+      {api && !dragging ? (
+        <button
+          type="button"
+          className="board__tasks board__tasks--toggle"
+          aria-expanded={open}
+          aria-label={`${open ? 'Tasks zuklappen' : 'Tasks aufklappen'}: ${progress.done} von ${progress.total} erledigt`}
+          onClick={(e) => {
+            stop(e);
+            api.toggleExpanded(card.id);
+          }}
+          onPointerDown={stop}
+          onKeyDown={stop}
+        >
+          {summary}
+        </button>
+      ) : (
+        <div className="board__tasks">{summary}</div>
+      )}
+      {open && api && (
+        <ul className="board__card-tasks" onClick={stop} onPointerDown={stop} onKeyDown={stop}>
+          {card.tasks.map((t) => (
+            <li
+              key={t.id}
+              data-task-id={t.id}
+              data-done={t.column === 'done' ? '' : undefined}
+              data-highlight={api.highlightTaskId === t.id ? '' : undefined}
+            >
+              {api.readOnly ? (
+                t.column === 'done' ? <Check size={12} /> : <Square size={12} />
+              ) : (
+                <input
+                  type="checkbox"
+                  checked={t.column === 'done'}
+                  onChange={() => api.toggleTaskDone(card.id, t)}
+                  aria-label={`#${t.iid} ${t.column === 'done' ? 'wieder öffnen' : 'erledigt'}`}
+                />
+              )}
+              <span className="board__card-task-title">{t.title}</span>
+              {t.column === 'doing' && <span className="board__card-task-state">in Arbeit</span>}
+              {t.column === 'review' && <span className="board__card-task-state">Review</span>}
+              {t.estimateSeconds !== null && <span className="mono tabnum board__card-task-h">{formatHoursFromSeconds(t.estimateSeconds)}</span>}
+              {t.assignees.length > 0 && <AssigneeAvatars assignees={t.assignees} />}
+            </li>
+          ))}
+        </ul>
+      )}
+    </>
   );
 }
