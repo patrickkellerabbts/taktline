@@ -265,8 +265,9 @@ export async function updateWorkPackageAction(
       if (!candidate) {
         return { ok: false, error: `Parent #${patch.parentIid} nicht gefunden im Projekt` };
       }
-      // Zirkularitätscheck: candidate darf nicht selbst (transitiv) Nachfolger von wp sein
-      const isCircular = await isDescendant(wp.project.id, candidate.id, wp.id);
+      // Zirkularitätscheck: candidate darf nicht selbst (transitiv) unter wp hängen.
+      // Ein Vorfahre von wp (z.B. der Grosselternknoten) ist dagegen erlaubt.
+      const isCircular = await isDescendant(wp.project.id, wp.id, candidate.id);
       if (isCircular) {
         return { ok: false, error: 'Parent würde Zirkularität erzeugen' };
       }

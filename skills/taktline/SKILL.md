@@ -1,6 +1,6 @@
 ---
 name: taktline
-description: Plant und pflegt Projekte in Taktline und GitLab, aus jedem Repo – User Stories und Vorgänge anlegen, Karten auf dem Kanban-Board verschieben, Termine, Fortschritt, Story Points, Abhängigkeiten, Hierarchie und Ressourcen setzen, Stories in Tasks zerlegen, Sprints anlegen, ändern, starten, abschliessen und reviewen, Issues Sprints zuordnen, Arbeitsjournale auslesen und Journal-Einträge vorschlagen. Verwenden, wenn der Nutzer Taktline nennt oder Backlog, Board, Gantt, Stories, Sprints oder Arbeitsjournale eines Projekts planen oder einsehen will. Nicht für Risiken, Planning Poker, Retrospektiven und Lese-Links; diese gehen nur in der Web-App.
+description: Plant und pflegt Projekte in Taktline und GitLab, aus jedem Repo – User Stories und Vorgänge anlegen, Karten auf dem Kanban-Board verschieben, Termine, Fortschritt, Story Points, Abhängigkeiten, Hierarchie und Ressourcen setzen, den Projektstrukturplan (PSP) anzeigen und gliedern, Stories in Tasks zerlegen, Sprints anlegen, ändern, starten, abschliessen und reviewen, Issues Sprints zuordnen, Arbeitsjournale auslesen und Journal-Einträge vorschlagen. Verwenden, wenn der Nutzer Taktline nennt oder Backlog, Board, Gantt, PSP, Stories, Sprints oder Arbeitsjournale eines Projekts planen oder einsehen will. Nicht für Risiken, Planning Poker, Retrospektiven und Lese-Links; diese gehen nur in der Web-App.
 ---
 
 # Taktline bedienen
@@ -97,6 +97,23 @@ node ~/.claude/skills/taktline/taktline.mjs task-add 42 --title "Datenmodell anl
 - **Höchstens ein Tag pro Task.** Über 8 Stunden schlägt die CLI vor aufzuteilen. Mach daraus mehrere kleinere Tasks.
 - Schlag die Zerlegung zuerst als Liste vor und leg die Tasks erst an, wenn der Nutzer zustimmt. Stunden schätzt das Team. Übernimm Zahlen des Nutzers, sonst lass `--hours` weg.
 - Tasks verschiebt `move` wie jede Karte. Sie erscheinen im Taskboard ihrer Story, nicht im Gantt.
+
+## Projektstrukturplan (PSP)
+
+Der PSP ist die Gantt-Hierarchie, also `parent_iid` im gantt-meta-Block, kein eigenes Datenmodell. `psp` zeigt den Baum mit Codes (1, 1.2, 1.2.3), `psp --text` als eingerückte Gliederung, z.B. für einen Bericht. Die Codes werden nicht gespeichert: Taktline nummeriert die Geschwister nach Start, dann nach Issue-Nummer. Umhängen oder neue Termine ändern deshalb die Codes. Nenne Pakete gegenüber dem Nutzer immer mit Issue-Nummer, nicht nur mit Code.
+
+```bash
+node ~/.claude/skills/taktline/taktline.mjs psp --text
+# Teilprojekt anlegen und Pakete darunter hängen
+node ~/.claude/skills/taktline/taktline.mjs create --title "Realisierung" --start 2026-12-01 --due 2027-01-31 --dry-run
+node ~/.claude/skills/taktline/taktline.mjs update 43 --parent 70 --dry-run
+# wieder auf die oberste Ebene
+node ~/.claude/skills/taktline/taktline.mjs update 43 --clear parent
+```
+
+- **Gliederung erst vorschlagen.** Eine neue PSP-Struktur zeigst du zuerst als Liste (Teilprojekte und welche Issues darunter kommen) und legst sie erst an, wenn der Nutzer zustimmt.
+- **Der Parent wird Summary-Task:** Er bekommt seine Termine aus den Kindern und erscheint im Gantt als Sammelbalken.
+- **Tasks gehören nicht in den PSP.** Sie hängen über die GitLab-Hierarchie an ihrer Story, nie über `--parent`. Stories ohne Termin und ohne Parent zeigt der PSP nicht.
 
 ## Vorgehen
 

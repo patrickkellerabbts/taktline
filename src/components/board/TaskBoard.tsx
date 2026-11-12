@@ -18,7 +18,7 @@ import { moveBoardCardAction } from '@/app/projects/[id]/board/actions';
 import { createTaskAction } from '@/app/projects/[id]/board/task-actions';
 import { TaskForm } from './StoryTasks';
 import { AssigneeAvatars } from '@/components/gantt/AssigneeAvatars';
-import { formatHoursFromSeconds, taskProgress } from '@/lib/agile/tasks';
+import { formatHoursFromSeconds, storyCloseHint, taskProgress } from '@/lib/agile/tasks';
 import type { BoardColumnId } from '@/lib/agile/board';
 import type { BoardCard, BoardPerson, BoardTask } from './BoardView';
 
@@ -117,6 +117,7 @@ export function TaskBoard({ projectId, people, stories: serverStories, readOnly,
           </div>
           {stories.map((story) => {
             const progress = taskProgress(story.tasks);
+            const closeHint = storyCloseHint(story.column, progress);
             return (
               <div key={story.id} className="taskboard__lane" role="row">
                 <button type="button" className="taskboard__story" onClick={() => onOpenStory(story.id)} role="cell">
@@ -130,6 +131,11 @@ export function TaskBoard({ projectId, people, stories: serverStories, readOnly,
                       ? 'Noch keine Tasks'
                       : `${progress.done}/${progress.total} · ${formatHoursFromSeconds(progress.remainingSeconds)} offen`}
                   </span>
+                  {closeHint && (
+                    <span className="board__close-hint" title={closeHint.title}>
+                      {closeHint.label}
+                    </span>
+                  )}
                 </button>
                 {COLUMNS.map((c) => (
                   <Cell key={c.id} storyId={story.id} column={c.id} readOnly={readOnly}>

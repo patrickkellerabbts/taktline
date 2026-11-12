@@ -136,6 +136,15 @@ const SHOTS: Shot[] = [
     guest: true,
   },
   {
+    file: 'psp.png',
+    path: `/projects/${DEMO_PROJECT_ID}/psp`,
+    description: 'Projektstrukturplan als Baumdiagramm mit PSP-Codes',
+    prepare: async (page) => {
+      await page.locator('.psp__canvas g[data-iid]').filter({ hasText: 'Startseite umsetzen' }).click();
+      await page.waitForTimeout(300);
+    },
+  },
+  {
     file: 'risk-matrix.png',
     path: `/projects/${DEMO_PROJECT_ID}/risks`,
     description: '5×5-Risikomatrix mit Drag-and-Drop',

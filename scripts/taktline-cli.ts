@@ -34,6 +34,7 @@ import {
   type BoardColumnId,
 } from '../src/lib/agile/board';
 import { buildStoryDescription, mergeCriteria } from '../src/lib/agile/story';
+import { buildPsp, pspOutline, type PspInput } from '../src/lib/psp';
 import {
   DependencyTypeSchema,
   parseGanttMeta,
@@ -77,6 +78,11 @@ Tasks (native GitLab-Tasks unter einer Story, Schätzung in Stunden):
   tasks <story-iid>
   task-add <story-iid> --title <text> [--hours <h>] [--assignee <user-id>]
 
+Projektstrukturplan (PSP = die Gantt-Hierarchie über parent_iid):
+  psp [--text]                Baum mit PSP-Codes (1, 1.2, 1.2.3); --text als Gliederung
+                              Umhängen mit update <iid> --parent <iid> bzw. --clear parent,
+                              Unterpaket mit create --parent <iid> --start <datum> --due <datum>
+
 Lesen:
   list [--state opened|closed|all] [--column ${BOARD_COLUMNS.map((c) => c.id).join('|')}] [--sprint <nr>] [--stories]
   show <iid>
@@ -115,6 +121,7 @@ type Issue = {
   description: string | null;
   state: string;
   due_date: string | null;
+  created_at?: string;
   labels: string[];
   assignees?: Array<{ id: number; username: string }>;
   web_url?: string;
@@ -319,6 +326,7 @@ async function main() {
       notes: { type: 'string' },
       outcome: { type: 'string' },
       'carry-over': { type: 'string' },
+      text: { type: 'boolean' },
     },
   });
   const [command, ...args] = positionals;
@@ -583,6 +591,54 @@ async function main() {
     case 'show': {
       const issue = await loadIssue(iidArgument(args[0]));
       print({ ...summarize(issue), text: stripGanttMeta(issue.description) });
+      return;
+    }
+
+    case 'psp': {
+      // Gleiche Regeln wie die PSP-Seite der Web-App: Tasks gehören zur Story,
+      // Stories ohne Termin und ohne Parent leben nur auf dem Board. Start ohne
+      // start_date ist wie beim Sync das Erstelldatum.
+      const issues = (await allIssues()).filter((i) => i.issue_type !== 'task');
+      const metas = new Map(issues.map((i) => [i.iid, parseGanttMeta(i.description)]));
+      const parents = new Set([...metas.values()].map((m) => m?.parent_iid).filter((p): p is number => p !== undefined));
+      const items: PspInput[] = [];
+      for (const issue of issues) {
+        const meta = metas.get(issue.iid);
+        const story = isStory(issue.labels);
+        const unscheduled = story && !meta?.start_date && !issue.due_date;
+        if (unscheduled && meta?.parent_iid === undefined && !parents.has(issue.iid)) continue;
+        items.push({
+          iid: issue.iid,
+          parentIid: meta?.parent_iid ?? null,
+          title: issue.title,
+          start: unscheduled ? null : (meta?.start_date ?? issue.created_at?.slice(0, 10) ?? null),
+          end: unscheduled ? null : issue.due_date,
+          state: issue.state === 'closed' ? 'closed' : 'opened',
+          progress: meta?.progress ?? 0,
+          story,
+        });
+      }
+      const { roots, flat } = buildPsp(items);
+      if (values.text) {
+        console.log(pspOutline(roots, String(project)));
+        return;
+      }
+      print({
+        project,
+        items: flat.map((n) => ({
+          code: n.code,
+          iid: n.iid,
+          title: n.title,
+          parent: n.parentIid,
+          depth: n.depth,
+          state: n.state,
+          start: n.start,
+          due: n.end,
+          progress: n.progress,
+          children: n.children.length,
+          ...(n.story ? { story: true } : {}),
+        })),
+      });
       return;
     }
 

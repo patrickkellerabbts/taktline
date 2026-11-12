@@ -87,6 +87,14 @@ Das Kanban-Board liest ausschliesslich GitLab-native Felder. Wer Issues per API 
 - [x] Vorschau vorhanden
 ```
 
+## Projektstrukturplan (PSP)
+
+Der PSP in Taktline ist **dieselbe Hierarchie wie im Gantt** (`parent_iid`). Es gibt kein eigenes Feld dafür:
+
+- **Umhängen** = `parent_iid` setzen oder entfernen. Ein Parent wird Summary-Task (Label `gantt::summary`).
+- **PSP-Codes** (1, 1.2, 1.2.3) werden nicht gespeichert. Geschwister sind nach Start sortiert (`start_date`, ersatzweise das Erstelldatum des Issues), dann nach IID. Die Referenz-Implementierung ist `buildPsp` in [`src/lib/psp.ts`](src/lib/psp.ts); Web-App und CLI (`psp`) nutzen beide sie.
+- **Nicht im PSP:** Tasks (`issue_type=task`) sowie User Stories ohne Termine, ohne Parent und ohne Kinder.
+
 ## Tasks unter User Stories
 
 Tasks sind **native GitLab-Tasks** (Work Item Type „Task“, REST `issue_type=task`), nicht Teil des `gantt-meta`-Blocks:
