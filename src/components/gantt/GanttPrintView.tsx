@@ -105,340 +105,311 @@ export function GanttPrintView({ bars, milestones, dependencies, projectName }: 
     year: 'numeric',
   });
 
+  const TOP = HEADER_HEIGHT + DATE_AXIS_HEIGHT;
+  const totalHeight = TOP + bodyHeight;
+  const FONT = '-apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Helvetica, Arial, sans-serif';
+  const MONO = 'ui-monospace, SFMono-Regular, Menlo, Courier, monospace';
+  const subtitle =
+    `Gantt-Übersicht · ${ordered.length} Aufgabe${ordered.length === 1 ? '' : 'n'}` +
+    (milestones.length > 0 ? ` · ${milestones.length} Meilenstein${milestones.length === 1 ? '' : 'e'}` : '');
+
+  // Ein einziges SVG (kein HTML), damit dieselbe Ansicht im Browser druckt und
+  // in der Taktline-CLI ohne Browser zu einem PDF wird.
   return (
-    <div
+    <svg
       className="gantt-print-root"
-      style={{
-        width: PRINT_WIDTH,
-        background: '#fff',
-        color: '#1c1c1a',
-        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Inter, sans-serif',
-        fontSize: 11,
-        lineHeight: 1.3,
-      }}
+      xmlns="http://www.w3.org/2000/svg"
+      width={PRINT_WIDTH}
+      height={totalHeight}
+      viewBox={`0 0 ${PRINT_WIDTH} ${totalHeight}`}
+      fontFamily={FONT}
+      style={{ display: 'block', background: '#fff' }}
     >
+      <rect x={0} y={0} width={PRINT_WIDTH} height={totalHeight} fill="#fff" />
+
       {/* ── Header ───────────────────────────────────────── */}
-      <div
-        style={{
-          height: HEADER_HEIGHT,
-          padding: '8px 12px',
-          display: 'flex',
-          alignItems: 'flex-end',
-          justifyContent: 'space-between',
-          borderBottom: '1px solid #d6d3d1',
-        }}
+      <text x={12} y={26} fontSize={16} fontWeight={700} fill="#1c1c1a">
+        {projectName}
+      </text>
+      <text x={12} y={41} fontSize={10} fill="#78716c">
+        {subtitle}
+      </text>
+      <text x={PRINT_WIDTH - 12} y={26} fontSize={10} fill="#78716c" textAnchor="end">
+        Stand: {printDate}
+      </text>
+      <text x={PRINT_WIDTH - 12} y={41} fontSize={10} fill="#78716c" textAnchor="end">
+        {range.start.toLocaleDateString('de-DE')} – {range.end.toLocaleDateString('de-DE')}
+      </text>
+      <line x1={0} x2={PRINT_WIDTH} y1={HEADER_HEIGHT - 0.5} y2={HEADER_HEIGHT - 0.5} stroke="#d6d3d1" strokeWidth={1} />
+
+      {/* ── Kopf der Aufgabenliste + Datumsachse ─────────── */}
+      <rect x={0} y={HEADER_HEIGHT} width={LEFT_COL_WIDTH} height={DATE_AXIS_HEIGHT} fill="#fafaf9" />
+      <text
+        x={10}
+        y={HEADER_HEIGHT + DATE_AXIS_HEIGHT / 2 + 3}
+        fontSize={9}
+        fontWeight={600}
+        fill="#57534e"
+        letterSpacing="0.06em"
       >
-        <div>
-          <div style={{ fontSize: 16, fontWeight: 700, letterSpacing: '-0.01em' }}>
-            {projectName}
-          </div>
-          <div style={{ fontSize: 10, color: '#78716c', marginTop: 2 }}>
-            Gantt-Übersicht · {ordered.length} Aufgabe{ordered.length === 1 ? '' : 'n'}
-            {milestones.length > 0 ? ` · ${milestones.length} Meilenstein${milestones.length === 1 ? '' : 'e'}` : ''}
-          </div>
-        </div>
-        <div style={{ fontSize: 10, color: '#78716c', textAlign: 'right' }}>
-          <div>Stand: {printDate}</div>
-          <div style={{ marginTop: 2 }}>
-            {range.start.toLocaleDateString('de-DE')} – {range.end.toLocaleDateString('de-DE')}
-          </div>
-        </div>
-      </div>
+        AUFGABE
+      </text>
+      <g transform={`translate(${LEFT_COL_WIDTH} ${HEADER_HEIGHT})`}>
+        <PrintDateAxis range={range} pxPerDay={pxPerDay} width={timelineWidth} />
+      </g>
+      <line x1={0} x2={PRINT_WIDTH} y1={TOP - 0.5} y2={TOP - 0.5} stroke="#d6d3d1" strokeWidth={1} />
 
-      {/* ── Date-Axis-Header + Task-Liste-Header ───────────────── */}
-      <div style={{ display: 'flex', height: DATE_AXIS_HEIGHT }}>
-        <div
-          style={{
-            width: LEFT_COL_WIDTH,
-            borderRight: '1px solid #d6d3d1',
-            borderBottom: '1px solid #d6d3d1',
-            background: '#fafaf9',
-            display: 'flex',
-            alignItems: 'center',
-            padding: '0 10px',
-            fontSize: 9,
-            fontWeight: 600,
-            color: '#57534e',
-            textTransform: 'uppercase',
-            letterSpacing: '0.06em',
-          }}
-        >
-          Aufgabe
-        </div>
-        <div style={{ width: timelineWidth, borderBottom: '1px solid #d6d3d1' }}>
-          <PrintDateAxis range={range} pxPerDay={pxPerDay} width={timelineWidth} />
-        </div>
-      </div>
-
-      {/* ── Body: Liste + Timeline ─────────────────────────── */}
-      <div style={{ display: 'flex' }}>
-        {/* Linke Spalte */}
-        <div
-          style={{
-            width: LEFT_COL_WIDTH,
-            borderRight: '1px solid #d6d3d1',
-            background: '#fff',
-          }}
-        >
-          {milestoneRowCount > 0 && (
-            <div
-              style={{
-                height: MILESTONE_ROW_HEIGHT,
-                padding: '0 10px',
-                display: 'flex',
-                alignItems: 'center',
-                fontSize: 9,
-                color: '#a16207',
-                fontWeight: 600,
-                textTransform: 'uppercase',
-                letterSpacing: '0.05em',
-                borderBottom: '1px solid #f5f5f4',
-              }}
-            >
-              Meilensteine
-            </div>
-          )}
-          {ordered.map(({ bar, depth }) => (
-            <div
-              key={bar.id}
-              style={{
-                height: rowHeight,
-                padding: '0 6px',
-                paddingLeft: 10 + depth * 12,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                borderBottom: '1px solid #f5f5f4',
-                overflow: 'hidden',
-              }}
-            >
-              <span
-                style={{
-                  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-                  fontSize: taskIidFontSize,
-                  color: '#78716c',
-                  flexShrink: 0,
-                  minWidth: 22,
-                }}
-              >
+      {/* ── Linke Spalte: Aufgabenliste ──────────────────── */}
+      <defs>
+        <clipPath id="print-list-clip">
+          <rect x={0} y={TOP} width={LEFT_COL_WIDTH - 6} height={bodyHeight} />
+        </clipPath>
+        <clipPath id="print-timeline-clip">
+          <rect x={0} y={0} width={timelineWidth} height={Math.max(bodyHeight, DATE_AXIS_HEIGHT)} />
+        </clipPath>
+      </defs>
+      <g clipPath="url(#print-list-clip)">
+        {milestoneRowCount > 0 && (
+          <text
+            x={10}
+            y={TOP + MILESTONE_ROW_HEIGHT / 2 + 3}
+            fontSize={9}
+            fontWeight={600}
+            fill="#a16207"
+            letterSpacing="0.05em"
+          >
+            MEILENSTEINE
+          </text>
+        )}
+        {ordered.map(({ bar, depth }, i) => {
+          const y = TOP + milestoneOffsetY + i * rowHeight;
+          const baseline = y + rowHeight / 2 + taskFontSize * 0.35;
+          const x = 10 + depth * 12;
+          const closed = bar.state === 'closed';
+          return (
+            <g key={bar.id}>
+              <text x={x} y={baseline} fontSize={taskIidFontSize} fill="#78716c" fontFamily={MONO}>
                 #{bar.gitlabIssueIid}
-              </span>
-              <span
-                style={{
-                  fontSize: taskFontSize,
-                  fontWeight: bar.isSummary ? 600 : 400,
-                  color: bar.state === 'closed' ? '#78716c' : '#1c1c1a',
-                  textDecoration: bar.state === 'closed' ? 'line-through' : undefined,
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  flex: 1,
-                  minWidth: 0,
-                }}
-                title={bar.text}
+              </text>
+              <text
+                x={x + 28}
+                y={baseline}
+                fontSize={taskFontSize}
+                fontWeight={bar.isSummary ? 600 : 400}
+                fill={closed ? '#78716c' : '#1c1c1a'}
+                textDecoration={closed ? 'line-through' : undefined}
               >
                 {bar.text}
-              </span>
-            </div>
-          ))}
-        </div>
+              </text>
+              <line x1={0} x2={LEFT_COL_WIDTH} y1={y + rowHeight} y2={y + rowHeight} stroke="#f5f5f4" strokeWidth={1} />
+            </g>
+          );
+        })}
+      </g>
+      <line x1={LEFT_COL_WIDTH - 0.5} x2={LEFT_COL_WIDTH - 0.5} y1={HEADER_HEIGHT} y2={totalHeight} stroke="#d6d3d1" strokeWidth={1} />
 
-        {/* Rechte Spalte: SVG-Timeline */}
-        <svg
-          width={timelineWidth}
-          height={bodyHeight}
-          style={{ display: 'block', background: '#fff' }}
-        >
-          <defs>
-            <marker
-              id="dep-arrow-print"
-              markerWidth="6"
-              markerHeight="6"
-              refX="5"
-              refY="3"
-              orient="auto"
-              markerUnits="userSpaceOnUse"
-            >
-              <polygon points="0 0, 6 3, 0 6" fill="#78716c" />
-            </marker>
-            {/* Clip-Paths damit Bar-Titel horizontal nicht über die Bar
-                hinausragen. Vertikal aufs ganze Row-Feld erweitert damit
-                Text mittig der Row positioniert werden kann (auch wenn die
-                Bar selbst nur 60% der Row-Höhe ausmacht). */}
-            {ordered.map(({ bar }, i) => {
-              const pos = posByBarId.get(bar.id)!;
-              const rowY = milestoneOffsetY + i * rowHeight;
-              return (
-                <clipPath key={`clip-${bar.id}`} id={`print-bar-clip-${bar.id}`}>
-                  <rect
-                    x={pos.x + 2}
-                    y={rowY}
-                    width={Math.max(0, pos.width - 4)}
-                    height={rowHeight}
-                  />
-                </clipPath>
-              );
-            })}
-          </defs>
+      {/* ── Rechte Spalte: Timeline ──────────────────────── */}
+      <g transform={`translate(${LEFT_COL_WIDTH} ${TOP})`}>
+        <g clipPath="url(#print-timeline-clip)">
+              <defs>
+                <marker
+                  id="dep-arrow-print"
+                  markerWidth="6"
+                  markerHeight="6"
+                  refX="5"
+                  refY="3"
+                  orient="auto"
+                  markerUnits="userSpaceOnUse"
+                >
+                  <polygon points="0 0, 6 3, 0 6" fill="#78716c" />
+                </marker>
+                {/* Clip-Paths damit Bar-Titel horizontal nicht über die Bar
+                    hinausragen. Vertikal aufs ganze Row-Feld erweitert damit
+                    Text mittig der Row positioniert werden kann (auch wenn die
+                    Bar selbst nur 60% der Row-Höhe ausmacht). */}
+                {ordered.map(({ bar }, i) => {
+                  const pos = posByBarId.get(bar.id)!;
+                  const rowY = milestoneOffsetY + i * rowHeight;
+                  return (
+                    <clipPath key={`clip-${bar.id}`} id={`print-bar-clip-${bar.id}`}>
+                      <rect
+                        x={pos.x + 2}
+                        y={rowY}
+                        width={Math.max(0, pos.width - 4)}
+                        height={rowHeight}
+                      />
+                    </clipPath>
+                  );
+                })}
+              </defs>
 
-          {/* Wochenend-Hintergrund (nur wenn pxPerDay gross genug — sonst
-              wird's optisches Rauschen) */}
-          {pxPerDay >= 4 && (
-            <Weekends
-              range={range}
-              pxPerDay={pxPerDay}
-              height={bodyHeight}
-            />
-          )}
+              {/* Wochenend-Hintergrund (nur wenn pxPerDay gross genug — sonst
+                  wird's optisches Rauschen) */}
+              {pxPerDay >= 4 && (
+                <Weekends
+                  range={range}
+                  pxPerDay={pxPerDay}
+                  height={bodyHeight}
+                />
+              )}
 
-          {/* Monat-Grid-Linien (vertikal) */}
-          <MonthGridLines range={range} pxPerDay={pxPerDay} height={bodyHeight} />
+              {/* Monat-Grid-Linien (vertikal) */}
+              <MonthGridLines range={range} pxPerDay={pxPerDay} height={bodyHeight} />
 
-          {/* Row-Trennlinien (horizontal) */}
-          {Array.from({ length: ordered.length }).map((_, i) => (
-            <line
-              key={i}
-              x1={0}
-              x2={timelineWidth}
-              y1={milestoneOffsetY + (i + 1) * rowHeight}
-              y2={milestoneOffsetY + (i + 1) * rowHeight}
-              stroke="#f5f5f4"
-              strokeWidth={1}
-            />
-          ))}
+              {/* Row-Trennlinien (horizontal) */}
+              {Array.from({ length: ordered.length }).map((_, i) => (
+                <line
+                  key={i}
+                  x1={0}
+                  x2={timelineWidth}
+                  y1={milestoneOffsetY + (i + 1) * rowHeight}
+                  y2={milestoneOffsetY + (i + 1) * rowHeight}
+                  stroke="#f5f5f4"
+                  strokeWidth={1}
+                />
+              ))}
 
-          {/* Today-Line */}
-          {todayX !== null && (
-            <line
-              x1={todayX}
-              x2={todayX}
-              y1={0}
-              y2={bodyHeight}
-              stroke="#dc2626"
-              strokeWidth={1}
-              strokeDasharray="2 2"
-            />
-          )}
+              {/* Today-Line */}
+              {todayX !== null && (
+                <line
+                  x1={todayX}
+                  x2={todayX}
+                  y1={0}
+                  y2={bodyHeight}
+                  stroke="#dc2626"
+                  strokeWidth={1}
+                  strokeDasharray="2 2"
+                />
+              )}
 
-          {/* Milestones — nur Diamonds, ohne Labels.
-              Bei der typischen Cluster-Dichte überlappen sich Labels auf A3
-              total — die Position ist via x-Achse plus Task-Liste eindeutig
-              genug. */}
-          {milestoneRowCount > 0 &&
-            milestones
-              .filter((m) => m.date)
-              .map((m) => {
-                const x = diffDays(range.start, startOfDay(m.date!)) * pxPerDay;
-                const y = MILESTONE_ROW_HEIGHT / 2;
+              {/* Milestones — nur Diamonds, ohne Labels.
+                  Bei der typischen Cluster-Dichte überlappen sich Labels auf A3
+                  total — die Position ist via x-Achse plus Task-Liste eindeutig
+                  genug. */}
+              {milestoneRowCount > 0 &&
+                milestones
+                  .filter((m) => m.date)
+                  .map((m) => {
+                    const x = diffDays(range.start, startOfDay(m.date!)) * pxPerDay;
+                    const y = MILESTONE_ROW_HEIGHT / 2;
+                    return (
+                      <polygon
+                        key={m.id}
+                        points={`${x},${y - MILESTONE_SIZE / 2} ${x + MILESTONE_SIZE / 2},${y} ${x},${y + MILESTONE_SIZE / 2} ${x - MILESTONE_SIZE / 2},${y}`}
+                        fill="#eab308"
+                        stroke="#713f12"
+                        strokeWidth={0.75}
+                      >
+                        <title>{m.text}</title>
+                      </polygon>
+                    );
+                  })}
+
+              {/* Dependencies (unter den Bars) */}
+              {dependencies.map((dep) => {
+                const pred = posByBarId.get(dep.predecessorId);
+                const succ = posByBarId.get(dep.successorId);
+                if (!pred || !succ) return null;
                 return (
-                  <polygon
-                    key={m.id}
-                    points={`${x},${y - MILESTONE_SIZE / 2} ${x + MILESTONE_SIZE / 2},${y} ${x},${y + MILESTONE_SIZE / 2} ${x - MILESTONE_SIZE / 2},${y}`}
-                    fill="#eab308"
-                    stroke="#713f12"
-                    strokeWidth={0.75}
-                  >
-                    <title>{m.text}</title>
-                  </polygon>
+                  <PrintDependencyArrow
+                    key={dep.id}
+                    type={dep.type}
+                    pred={pred}
+                    succ={succ}
+                    rowH={rowHeight}
+                    barH={barHeight}
+                    barPadY={barPadY}
+                    offsetY={milestoneOffsetY}
+                  />
                 );
               })}
 
-          {/* Dependencies (unter den Bars) */}
-          {dependencies.map((dep) => {
-            const pred = posByBarId.get(dep.predecessorId);
-            const succ = posByBarId.get(dep.successorId);
-            if (!pred || !succ) return null;
-            return (
-              <PrintDependencyArrow
-                key={dep.id}
-                type={dep.type}
-                pred={pred}
-                succ={succ}
-                rowH={rowHeight}
-                barH={barHeight}
-                barPadY={barPadY}
-                offsetY={milestoneOffsetY}
-              />
-            );
-          })}
-
-          {/* Bars */}
-          {ordered.map(({ bar }, i) => {
-            const pos = posByBarId.get(bar.id)!;
-            const y = milestoneOffsetY + i * rowHeight + barPadY;
-            const rowCenterY = milestoneOffsetY + i * rowHeight + rowHeight / 2;
-            const colors = printBarColor(bar.state, bar.isSummary);
-            const progressW = Math.max(0, Math.min(1, bar.progress)) * pos.width;
-            // Font-Size relativ zur Row-Höhe damit Text auch bei kleinen
-            // Bars (barHeight < 6) noch lesbar bleibt. Skaliert mit dem
-            // verfügbaren vertikalen Platz.
-            const labelFontSize = Math.max(5, Math.min(10, rowHeight * 0.6));
-            // Inside-Label nur bei breiten Bars (sonst überschattet der
-            // Text das Progress-Overlay). Bei schmalen Bars Text rechts
-            // neben der Bar in dunkler Schrift.
-            const textInside = pos.width >= 60;
-            return (
-              <g key={bar.id}>
-                <rect
-                  x={pos.x}
-                  y={y}
-                  width={pos.width}
-                  height={barHeight}
-                  rx={bar.isSummary ? 1 : 2}
-                  ry={bar.isSummary ? 1 : 2}
-                  fill={colors.fill}
-                  stroke={colors.stroke}
-                  strokeWidth={0.5}
-                />
-                {progressW > 0 && (
-                  <rect
-                    x={pos.x}
-                    y={y}
-                    width={progressW}
-                    height={barHeight}
-                    rx={bar.isSummary ? 1 : 2}
-                    ry={bar.isSummary ? 1 : 2}
-                    fill={colors.progress}
-                  />
+              {/* Bars */}
+              {ordered.map(({ bar }, i) => {
+                const pos = posByBarId.get(bar.id)!;
+                const y = milestoneOffsetY + i * rowHeight + barPadY;
+                const rowCenterY = milestoneOffsetY + i * rowHeight + rowHeight / 2;
+                const colors = printBarColor(bar.state, bar.isSummary);
+                const progressW = Math.max(0, Math.min(1, bar.progress)) * pos.width;
+                // Font-Size relativ zur Row-Höhe damit Text auch bei kleinen
+                // Bars (barHeight < 6) noch lesbar bleibt. Skaliert mit dem
+                // verfügbaren vertikalen Platz.
+                const labelFontSize = Math.max(5, Math.min(10, rowHeight * 0.6));
+                // Inside-Label nur bei breiten Bars (sonst überschattet der
+                // Text das Progress-Overlay). Bei schmalen Bars Text rechts
+                // neben der Bar in dunkler Schrift.
+                const textInside = pos.width >= 60;
+                return (
+                  <g key={bar.id}>
+                    <rect
+                      x={pos.x}
+                      y={y}
+                      width={pos.width}
+                      height={barHeight}
+                      rx={bar.isSummary ? 1 : 2}
+                      ry={bar.isSummary ? 1 : 2}
+                      fill={colors.fill}
+                      stroke={colors.stroke}
+                      strokeWidth={0.5}
+                    />
+                    {progressW > 0 && (
+                      <rect
+                        x={pos.x}
+                        y={y}
+                        width={progressW}
+                        height={barHeight}
+                        rx={bar.isSummary ? 1 : 2}
+                        ry={bar.isSummary ? 1 : 2}
+                        fill={colors.progress}
+                      />
+                    )}
+                    {textInside ? (
+                      <text
+                        x={pos.x + 4}
+                        y={rowCenterY}
+                        dominantBaseline="central"
+                        fontSize={labelFontSize}
+                        fontWeight={500}
+                        fill="#fff"
+                        clipPath={`url(#print-bar-clip-${bar.id})`}
+                      >
+                        {bar.text}
+                      </text>
+                    ) : (
+                      // Weisser Halo als eigene Ebene unter dem Text: Der Text
+                  // bleibt über Pfeilen und anderen Bars lesbar, ohne
+                  // rechteckigen Hintergrund. Zwei Ebenen statt paint-order,
+                  // weil die PDF-Ausgabe der CLI paint-order nicht kennt.
+                  <>
+                    <text
+                      x={pos.x + pos.width + 6}
+                      y={rowCenterY}
+                      dominantBaseline="central"
+                      fontSize={labelFontSize}
+                      fill="#fff"
+                      stroke="#fff"
+                      strokeWidth={2.5}
+                      strokeLinejoin="round"
+                    >
+                      {bar.text}
+                    </text>
+                    <text
+                      x={pos.x + pos.width + 6}
+                      y={rowCenterY}
+                      dominantBaseline="central"
+                      fontSize={labelFontSize}
+                      fill="#44403c"
+                    >
+                      {bar.text}
+                    </text>
+                  </>
                 )}
-                {textInside ? (
-                  <text
-                    x={pos.x + 4}
-                    y={rowCenterY}
-                    dominantBaseline="central"
-                    fontSize={labelFontSize}
-                    fontWeight={500}
-                    fill="#fff"
-                    clipPath={`url(#print-bar-clip-${bar.id})`}
-                  >
-                    {bar.text}
-                  </text>
-                ) : (
-                  // paint-order=stroke malt erst den weissen Stroke, dann den
-                  // dunklen Fill obendrauf. Effekt: Weisser Halo um die
-                  // Buchstaben, der Text bleibt auch über Pfeilen und anderen
-                  // Bars klar lesbar — und braucht keinen rechteckigen
-                  // Hintergrund der mit Wochenend-Schraffur kollidieren würde.
-                  <text
-                    x={pos.x + pos.width + 6}
-                    y={rowCenterY}
-                    dominantBaseline="central"
-                    fontSize={labelFontSize}
-                    fill="#44403c"
-                    stroke="#fff"
-                    strokeWidth={2.5}
-                    paintOrder="stroke"
-                    style={{ strokeLinejoin: 'round' }}
-                  >
-                    {bar.text}
-                  </text>
-                )}
-              </g>
-            );
-          })}
-        </svg>
-      </div>
-    </div>
+                  </g>
+                );
+              })}
+        </g>
+      </g>
+    </svg>
   );
 }
 
@@ -488,7 +459,7 @@ function PrintDateAxis({
   }
 
   return (
-    <svg width={width} height={DATE_AXIS_HEIGHT} style={{ display: 'block' }}>
+    <g>
       {/* Monat-Zellen mit hellem Hintergrund */}
       {months.map((m, i) => {
         const nextX = i + 1 < months.length ? months[i + 1].x : width;
@@ -536,7 +507,7 @@ function PrintDateAxis({
           </text>
         </g>
       ))}
-    </svg>
+    </g>
   );
 }
 
