@@ -14,7 +14,7 @@ import { parseWipLimits } from '@/lib/agile/flow-shared';
 
 type Props = {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ story?: string }>;
+  searchParams: Promise<{ story?: string; task?: string; view?: string }>;
 };
 
 export default async function BoardPage({ params, searchParams }: Props) {
@@ -22,14 +22,14 @@ export default async function BoardPage({ params, searchParams }: Props) {
   if (!session?.user?.id) redirect('/login');
 
   const { id } = await params;
-  const { story: initialStoryId } = await searchParams;
+  const { story: initialStoryId, task: initialTaskId, view } = await searchParams;
 
   const project = await loadProjectBoard(id);
   if (!project) notFound();
 
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },
-    select: { preferences: true },
+    select: { preferences: true, gitlabUserId: true },
   });
   if (parsePreferences(user?.preferences).lastOpenedProjectId !== id) {
     void savePreferencesAction({ lastOpenedProjectId: id });
@@ -53,6 +53,8 @@ export default async function BoardPage({ params, searchParams }: Props) {
       />
       <div style={{ flex: 1, padding: '14px 18px', minHeight: 0, display: 'flex' }}>
         <BoardView
+          // Neuer Sprung aus der Suche: frischer Zustand (aufgeklappt, Filter, Hervorhebung).
+          key={initialTaskId ?? 'board'}
           projectId={project.id}
           cards={project.cards}
           sprints={project.sprints}
@@ -61,6 +63,9 @@ export default async function BoardPage({ params, searchParams }: Props) {
             .filter((l) => !isReservedLabel(l.name))
             .map((l) => ({ name: l.name, color: l.color ?? undefined }))}
           initialStoryId={initialStoryId}
+          initialTaskId={initialTaskId}
+          initialView={view === 'mine' || view === 'tasks' || view === 'flow' ? view : 'cards'}
+          currentGitlabUserId={user?.gitlabUserId ?? null}
           definitionOfDone={commitments?.definitionOfDone ?? []}
           wipLimits={parseWipLimits(wipRow?.wipLimits)}
           flow={flow}

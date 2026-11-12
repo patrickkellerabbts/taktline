@@ -200,7 +200,8 @@ Native GitLab-Tasks (Work Item Type „Task“) statt eigener Datenhaltung, dami
 
 - **REST** kennt Tasks als Issues mit `issue_type=task`: anlegen, verschieben, schliessen und `time_estimate` gehen wie bei Issues. Die Issue-Liste liefert sie mit, deshalb markiert der Sync sie (`isTask`) und setzt sie auf `isUnscheduled`. Damit fallen sie automatisch aus Gantt, Berichten, Ressourcen und CSV.
 - **Die Zuordnung zur Story** gibt es nur über GraphQL (`lib/gitlab/tasks.ts`). Der Sync holt alle Task-Eltern in einem Abruf, der Webhook fragt für einen einzelnen Task nach. Gespeichert wird sie als `storyId`, bewusst getrennt von `parentId` (Gantt-Hierarchie).
-- **Board:** Story-Karten zeigen den Task-Fortschritt; das Taskboard hat eine Zeile pro Story. Beim Verschieben nach Done nennt die DoD-Abfrage offene Tasks.
+- **Board:** Story-Karten zeigen den Task-Fortschritt und klappen die Tasks auf (abhaken direkt auf der Karte); das Taskboard hat eine Zeile pro Story mit Anlegen in der Zeile; „Meine Tasks“ filtert auf die angemeldete Person. Beim Verschieben nach Done nennt die DoD-Abfrage offene Tasks.
+- **Suche:** Tasks verlinken auf `board?task=<id>`; das Board klappt die Story auf, setzt den Sprint-Filter auf „Alle“ und hebt den Task hervor. Alte `gantt?wp=`-Links auf Tasks leiten dorthin um.
 - **Sprint-Burndown** aus den Abschlusszeitpunkten (`closedAt`) von Tasks (Stunden) oder Stories (SP). Ohne tägliche Schnappschüsse; der Umfang ist deshalb der heutige, spätere Neuschätzungen verschieben die ganze Kurve.
 
 ## Sprint Review und Retrospektive

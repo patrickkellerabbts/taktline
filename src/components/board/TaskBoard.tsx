@@ -13,11 +13,14 @@ import {
   useSensors,
   type DragEndEvent,
 } from '@dnd-kit/core';
+import { Plus } from 'lucide-react';
 import { moveBoardCardAction } from '@/app/projects/[id]/board/actions';
+import { createTaskAction } from '@/app/projects/[id]/board/task-actions';
+import { TaskForm } from './StoryTasks';
 import { AssigneeAvatars } from '@/components/gantt/AssigneeAvatars';
 import { formatHoursFromSeconds, taskProgress } from '@/lib/agile/tasks';
 import type { BoardColumnId } from '@/lib/agile/board';
-import type { BoardCard, BoardTask } from './BoardView';
+import type { BoardCard, BoardPerson, BoardTask } from './BoardView';
 
 // Klassisches Scrum-Taskboard: eine Zeile pro Story (Swimlane), Spalten für
 // den Stand der Tasks. „Offen“ und „To Do“ fallen hier zusammen, weil ein Task
@@ -36,18 +39,22 @@ function laneColumn(task: BoardTask): Exclude<BoardColumnId, 'backlog'> {
 
 type Props = {
   projectId: string;
+  people: BoardPerson[];
   stories: BoardCard[];
   readOnly: boolean;
   onOpenStory: (id: string) => void;
 };
 
-export function TaskBoard({ projectId, stories: serverStories, readOnly, onOpenStory }: Props) {
+export function TaskBoard({ projectId, people, stories: serverStories, readOnly, onOpenStory }: Props) {
   const router = useRouter();
   const [, startTransition] = useTransition();
   const [stories, setStories] = useState(serverStories);
   const [synced, setSynced] = useState(serverStories);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Story, in deren Zeile gerade ein neuer Task eingetippt wird.
+  const [adding, setAdding] = useState<string | null>(null);
+  const [saving, startSaving] = useTransition();
   if (serverStories !== synced) {
     setSynced(serverStories);
     setStories(serverStories);
@@ -130,6 +137,38 @@ export function TaskBoard({ projectId, stories: serverStories, readOnly, onOpenS
                       .filter((t) => laneColumn(t) === c.id)
                       .map((t) => (
                         <TaskCard key={t.id} task={t} readOnly={readOnly} />
+                      ))}
+                    {c.id === 'todo' && !readOnly && story.column !== 'done' &&
+                      (adding === story.id ? (
+                        <div className="taskboard__add-form">
+                          <TaskForm
+                            people={people}
+                            pending={saving}
+                            submitLabel="Anlegen"
+                            onCancel={() => setAdding(null)}
+                            onSubmit={(input) =>
+                              startSaving(async () => {
+                                setError(null);
+                                const result = await createTaskAction(story.id, input);
+                                if (!result.ok) {
+                                  setError(result.error);
+                                  return;
+                                }
+                                setAdding(null);
+                                router.refresh();
+                              })
+                            }
+                          />
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          className="taskboard__add"
+                          onClick={() => setAdding(story.id)}
+                          aria-label={`Task zu #${story.iid} hinzufügen`}
+                        >
+                          <Plus size={12} /> Task
+                        </button>
                       ))}
                   </Cell>
                 ))}

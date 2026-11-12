@@ -11,7 +11,7 @@ Projektmanagement-Tool als Bridge zwischen GitLab CE und vollwertiger PM-Softwar
 <details>
 <summary>Weitere Ansichten: Board, Taskboard, Sprints, Planning Poker, Retro, Fluss, Lese-Links, Risikomatrix, Ressourcen, Berichte</summary>
 
-**Kanban-Board** — Karten per Drag-and-Drop zwischen den Spalten verschieben, standardmässig mit dem aktiven Sprint:
+**Kanban-Board** — Karten per Drag-and-Drop zwischen den Spalten verschieben, standardmässig mit dem aktiven Sprint; die Tasks einer Story klappen direkt auf der Karte auf und lassen sich dort abhaken:
 
 ![Kanban-Board](docs/screenshots/board.png)
 
@@ -19,7 +19,7 @@ Projektmanagement-Tool als Bridge zwischen GitLab CE und vollwertiger PM-Softwar
 
 ![User Story bearbeiten](docs/screenshots/story-dialog.png)
 
-**Taskboard** — Stories im Sprint Planning in Tasks von höchstens einem Tag zerlegt (native GitLab-Tasks mit Stundenschätzung), eine Zeile pro Story:
+**Taskboard** — Stories im Sprint Planning in Tasks von höchstens einem Tag zerlegt (native GitLab-Tasks mit Stundenschätzung), eine Zeile pro Story, neue Tasks direkt in der Zeile anlegen. Daneben „Meine Tasks“ fürs Daily Scrum: alles, was mir im Sprint zugewiesen ist, mit Starten/Review/Erledigt. Die Suche findet Tasks und öffnet ihre Story aufgeklappt:
 
 ![Taskboard](docs/screenshots/taskboard.png)
 

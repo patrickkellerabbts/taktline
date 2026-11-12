@@ -161,7 +161,8 @@ const TASKS: Array<{ story: string; iid: number; title: string; hours: number; a
   { story: 's4', iid: 65, title: 'Liste im Backend mit Sortierung', hours: 4, assignee: 102, column: 'review' },
   { story: 's2', iid: 66, title: 'Anmeldeformular im Footer', hours: 2, assignee: 105, closed: -1 },
   { story: 's2', iid: 67, title: 'Double-Opt-in-Mail versenden', hours: 4, assignee: 105 },
-  { story: 's2', iid: 68, title: 'Abmeldelink und Bestätigungsseite', hours: 3 },
+  { story: 's2', iid: 68, title: 'Abmeldelink und Bestätigungsseite', hours: 3, assignee: 101 },
+  { story: 's2', iid: 69, title: 'Newsletter-Texte mit der Redaktion abstimmen', hours: 1.5, assignee: 101, column: 'doing' },
 ];
 
 const SPRINT_OF: Record<string, number> = { s5: 1, p2a: 1, p2b: 1, s2: 2, s3: 2, s4: 2, p3b: 2, p3c: 2, s6: 3 };
