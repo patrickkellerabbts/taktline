@@ -1,19 +1,46 @@
-# Taktline — Gantt-Chart Webapp
+# Taktline — Projektmanagement auf GitLab CE
 
-Projektmanagement-Tool als Bridge zwischen GitLab CE und vollwertiger PM-Software. Liest Issues + Milestones aus GitLab, ergänzt sie um Gantt-spezifische Planungsdaten (Start-Dates, Dependencies, Hierarchie, Resource-Allocation) und visualisiert alles als interaktives Gantt-Chart.
+Taktline macht aus den Issues eines GitLab-CE-Projekts eine vollständige Projektplanung: klassisch mit Gantt, Projektstrukturplan, Risiken, Ressourcen und Berichten, agil mit Scrum und Kanban, für das Team mit Arbeitsjournal und Lese-Links, und für KI-Agenten über einen Claude-Code-Skill. GitLab bleibt die Quelle: Was GitLab selbst kennt (Titel, Status, Zuständige, Labels, Termine, Tasks), steht dort. Was fehlt (Start-Datum, Hierarchie, Abhängigkeiten, Fortschritt, Story Points, Auslastung), hängt Taktline als kleinen YAML-Block an die Issue-Beschreibung. Nur was GitLab gar nicht abbilden kann, etwa Sprints, Risiken oder Retros, liegt in der Taktline-Datenbank.
 
 > **Status:** Single-Tenant Internal-Tool, im produktiven Einsatz. Hier öffentlich als Portfolio-/Beispiel-Repo. Vollständige Anforderungen siehe [`REQUIREMENTS.md`](./REQUIREMENTS.md), Design-Vorgaben in [`DESIGN_BRIEF.md`](./DESIGN_BRIEF.md), Architektur-Notizen in [`ARCHITECTURE.md`](./ARCHITECTURE.md).
 
-**→ Live-Demo: [taktlinedemo.da2o.xyz](https://taktlinedemo.da2o.xyz/)** — ohne Anmeldung, alles anfassbar. Balken verschieben, Termine und Fortschritt ändern, Aufgaben und Risiken anlegen, kommentieren. Alle Besucher teilen sich einen Datenstand, der sich stündlich auf die Beispieldaten zurücksetzt.
+**→ Live-Demo: [taktlinedemo.da2o.xyz](https://taktlinedemo.da2o.xyz/)** — ohne Anmeldung, alles anfassbar: Balken verschieben, Karten über das Board ziehen, Stories schätzen, Risiken anlegen. Alle Besucher teilen sich einen Datenstand, der sich stündlich auf die Beispieldaten zurücksetzt.
 
 ![Gantt-Ansicht mit Hierarchie, Dependency-Pfeilen und Inspector](docs/screenshots/gantt-overview.png)
 
+## Was Taktline kann
+
+| Bereich | Ansichten |
+|---|---|
+| **Klassisch planen** | Gantt mit Abhängigkeiten und Baseline, Projektstrukturplan, Meilensteine, Risikomatrix, Ressourcen-Auslastung, Berichte |
+| **Agil arbeiten** | Kanban-Board mit WIP-Limits, User Stories, Tasks und Taskboard, Sprints mit Burndown und Velocity, Planning Poker, Sprint Review und Retrospektive, Cumulative Flow |
+| **Im Team** | Arbeitsjournal, „Meine Tasks“, Suche über alles, Benachrichtigungen, Lese-Links für Personen ohne GitLab-Konto |
+| **Mit Agenten** | Claude-Code-Skill und CLI: planen, schätzen lassen, auswerten und Journal-Einträge vorschlagen, aus jedem Repo |
+
+Klassisch und agil arbeiten auf denselben Issues: Eine Story kann im Gantt einen Termin haben und gleichzeitig im Sprint auf dem Board liegen. Wer nur eines davon braucht, ignoriert das andere.
+
 <details>
-<summary>Weitere Ansichten: Projektstrukturplan, Board, Taskboard, Sprints, Planning Poker, Retro, Fluss, Lese-Links, Risikomatrix, Ressourcen, Berichte</summary>
+<summary>Alle Ansichten mit Screenshots</summary>
+
+### Klassisch planen
 
 **Projektstrukturplan** — dieselbe Hierarchie wie im Gantt als Baumdiagramm oder Gliederung mit PSP-Codes; Pakete anlegen, umbenennen, ein- und ausrücken, als PNG, SVG, PDF oder Text exportieren:
 
 ![Projektstrukturplan](docs/screenshots/psp.png)
+
+**Risikomatrix** — 5×5 nach Wahrscheinlichkeit und Auswirkung, Karten per Drag-and-Drop verschiebbar, umschaltbar zwischen vor und nach den Massnahmen:
+
+![Risikomatrix](docs/screenshots/risk-matrix.png)
+
+**Ressourcen** — Auslastung pro Person und Kalenderwoche:
+
+![Ressourcen-Heatmap](docs/screenshots/resources.png)
+
+**Berichte** — Fortschritt, offene Konflikte, Velocity und Meilenstein-Status:
+
+![Berichte](docs/screenshots/reports.png)
+
+### Agil arbeiten
 
 **Kanban-Board** — Karten per Drag-and-Drop zwischen den Spalten verschieben, standardmässig mit dem aktiven Sprint; die Tasks einer Story klappen direkt auf der Karte auf und lassen sich dort abhaken:
 
@@ -23,7 +50,7 @@ Projektmanagement-Tool als Bridge zwischen GitLab CE und vollwertiger PM-Softwar
 
 ![User Story bearbeiten](docs/screenshots/story-dialog.png)
 
-**Taskboard** — Stories im Sprint Planning in Tasks von höchstens einem Tag zerlegt (native GitLab-Tasks mit Stundenschätzung), eine Zeile pro Story, neue Tasks direkt in der Zeile anlegen. Daneben „Meine Tasks“ fürs Daily Scrum: alles, was mir im Sprint zugewiesen ist, mit Starten/Review/Erledigt. Die Suche findet Tasks und öffnet ihre Story aufgeklappt:
+**Taskboard** — Stories im Sprint Planning in Tasks von höchstens einem Tag zerlegt (native GitLab-Tasks mit Stundenschätzung), eine Zeile pro Story, neue Tasks direkt in der Zeile anlegen. Daneben „Meine Tasks“ fürs Daily Scrum. Die Suche findet Tasks und öffnet ihre Story aufgeklappt:
 
 ![Taskboard](docs/screenshots/taskboard.png)
 
@@ -43,25 +70,15 @@ Projektmanagement-Tool als Bridge zwischen GitLab CE und vollwertiger PM-Softwar
 
 ![Cumulative Flow Diagram](docs/screenshots/flow.png)
 
-**Lese-Links** — für Personen ohne GitLab-Konto, mit Ablaufdatum und jederzeit widerrufbar:
+### Im Team
+
+**Lese-Links** — für Personen ohne GitLab-Konto, zum Beispiel Dozierende oder Auftraggeber, mit Ablaufdatum und jederzeit widerrufbar:
 
 ![Lese-Link erstellen](docs/screenshots/share-links.png)
 
-So sieht es ohne Anmeldung aus, nur lesend und ohne Risiken:
+So sieht es ohne Anmeldung aus, nur lesend und ohne Risiken und Retros:
 
 ![Ansicht über einen Lese-Link](docs/screenshots/share-view.png)
-
-**Risikomatrix** — 5×5 nach Wahrscheinlichkeit und Auswirkung, Karten per Drag-and-Drop verschiebbar, umschaltbar zwischen Pre- und Post-Mitigation:
-
-![Risikomatrix](docs/screenshots/risk-matrix.png)
-
-**Ressourcen** — Auslastung pro Person und Kalenderwoche:
-
-![Ressourcen-Heatmap](docs/screenshots/resources.png)
-
-**Berichte** — Fortschritt, offene Konflikte, Velocity und Meilenstein-Status:
-
-![Berichte](docs/screenshots/reports.png)
 
 </details>
 
@@ -71,31 +88,58 @@ So sieht es ohne Anmeldung aus, nur lesend und ohne Risiken:
 
 ## Features
 
-- **GitLab-SSO** via OAuth2 gegen self-hosted GitLab CE
-- **Issue-Sync** mit zwei Richtungen:
-  - GitLab → App: Issues + Milestones (inkl. closed) automatisch geholt
-  - App → GitLab: Edits werden direkt zurück nach GitLab geschrieben
-- **Custom Gantt-Chart** (eigene SVG-Implementierung, kein Vendor-Lock-in):
-  - Zoom Tag / Woche / Monat / Quartal mit auto-fit
-  - Hierarchie / Tree-View mit Expand/Collapse + Summary-Bars
-  - Dependency-Pfeile (FS / SS / FF / SF) mit Elbow-Paths
-  - Drag & Drop + Resize von Bars
-  - Inspector-Panel mit allen Editier-Funktionen
-  - Klick-Picker für Parent und Dependencies
-- **Editierbar im Inspector:** Titel, Start/Ende, Progress, Status, Zuständige, Labels, Parent, Vorgänger
-- **Erstellung neuer Aufgaben** direkt aus der App (legt GitLab-Issue + lokales Work Package an)
-- **Projektstrukturplan (PSP):** die Gantt-Hierarchie als Baumdiagramm oder Gliederung mit automatischen PSP-Codes, bearbeitbar und exportierbar (PNG, SVG, PDF, Text); die Taktline-CLI zeigt ihn mit `psp`
+### Klassisch planen
+
+- **Gantt-Chart** als eigene SVG-Implementierung, ohne Vendor-Lock-in:
+  - Zoom Tag / Woche / Monat / Quartal mit Auto-Fit
+  - Hierarchie mit Auf- und Zuklappen und Sammelbalken
+  - Abhängigkeiten (FS / SS / FF / SF) mit Verzug, Konflikte werden markiert
+  - Balken verschieben und in der Länge ziehen
+  - Inspector für Titel, Start/Ende, Fortschritt, Status, Zuständige, Labels, Parent und Vorgänger
+  - Baseline einfrieren und Plan gegen Ist vergleichen, Druck-Export als PDF
+- **Projektstrukturplan (PSP):** die Gantt-Hierarchie als Baumdiagramm oder Gliederung mit automatischen PSP-Codes, bearbeitbar und exportierbar (PNG, SVG, PDF, Text)
+- **Meilensteine** aus GitLab, im Gantt und in den Berichten
+- **Risikomanagement:** Register mit 5×5-Matrix, Bewertung vor und nach Massnahmen, Owner, Wiedervorlage, Verknüpfung mit Arbeitspaketen und Meilensteinen, lückenloser Verlauf
+- **Ressourcen:** Auslastung pro Person und Woche aus den Zuteilungen in Prozent, Überlast wird markiert
+- **Berichte:** Fortschritt, Überfälliges, Konflikte, Burndown, Velocity und Meilenstein-Status pro Projekt und im Überblick über alle Projekte
+
+### Agil arbeiten
+
 - **Kanban-Board** mit fünf Spalten; Spalten liegen als Labels in GitLab, „Done“ ist der Issue-Status
 - **User Stories** mit Akzeptanzkriterien und Story Points; ohne Datum erscheinen sie nur auf dem Board, nicht im Gantt
-- **Sprints:** planen, starten, abschliessen, Board nach Sprint filtern; Zuordnung als Label am Issue
+- **Tasks und Taskboard:** Stories in native GitLab-Tasks mit Stundenschätzung zerlegen, Taskboard mit einer Zeile pro Story, Tasks direkt auf der Karte abhaken; Stories mit lauter erledigten Tasks bekommen den Hinweis „Alle Tasks erledigt“
+- **Sprints:** planen, starten, abschliessen (Unerledigtes wandert in den nächsten Sprint oder ins Backlog), Board nach Sprint filtern; Burndown in Stunden, Tasks oder Story Points
 - **Scrum-Rahmen:** Product Goal und Definition of Done pro Projekt, Velocity der abgeschlossenen Sprints als Planungsrichtwert; beim Verschieben einer Story nach Done fragt das Board die DoD und die Akzeptanzkriterien ab
-- **Tasks und Taskboard:** Stories in native GitLab-Tasks mit Stundenschätzung zerlegen, Taskboard mit einer Zeile pro Story, Sprint-Burndown in Stunden, Tasks oder Story Points; Stories mit lauter erledigten Tasks bekommen den Hinweis „Alle Tasks erledigt“
+- **Planning Poker:** User Stories im Team schätzen, auch zeitversetzt; Karten bleiben verdeckt bis zum Aufdecken, das Ergebnis wird als Story Points übernommen
 - **Sprint Review und Retrospektive:** Sprint-Ziel erreicht oder nicht, Inkrement und Feedback; Retro-Board mit Punkte-Abstimmung, Massnahmen werden Issues im nächsten Sprint und die nächste Retro prüft sie
 - **Kanban-Fluss:** WIP-Limits pro Spalte mit Warnung beim Überschreiten, Cumulative Flow Diagram aus täglichen Board-Ständen
-- **Planning Poker:** User Stories im Team schätzen, auch zeitversetzt; Karten bleiben verdeckt bis zum Aufdecken, Ergebnis wird als Story Points übernommen
-- **Arbeitsjournal:** pro Person und Tag Dauer, Kurztitel, technischer und organisatorischer Teil; Agenten lesen die Einträge aus und schlagen neue vor, die die Person prüft und mit einem Klick übernimmt
-- **Lese-Links** ohne GitLab-Konto: Gantt, Board, Sprints, Berichte und Ressourcen eines Projekts, ohne Risiken
-- **Webhook-Receiver** für Live-Updates aus GitLab (siehe [Deployment](#deployment))
+
+### Im Team
+
+- **Arbeitsjournal:** pro Person und Tag Dauer, Kurztitel, technischer und organisatorischer Teil
+- **Meine Tasks:** alles, was mir im Sprint zugewiesen ist, mit Starten, Review und Erledigt
+- **Suche** (⌘K) über Projekte, Arbeitspakete, Tasks und Meilensteine
+- **Benachrichtigungen:** bald fällige eigene Aufgaben und die letzten Änderungen im Projekt
+- **Lese-Links** ohne GitLab-Konto: Gantt, Board, Sprints, Berichte und Ressourcen eines Projekts, ohne Risiken und Retros; mit Ablaufdatum und widerrufbar
+
+### Mit Agenten
+
+Der Claude-Code-Skill (`npm run skill:install`) bringt eine CLI mit, die aus jedem Repo das passende Taktline-Projekt plant. Was in GitLab liegt, schreibt sie direkt dort; alles andere geht über die Agenten-API von Taktline, mit dem GitLab-Token des Agenten und dessen Rolle im Projekt.
+
+- **Planen:** Stories mit Akzeptanzkriterien anlegen, in Tasks zerlegen, Termine, Abhängigkeiten, Hierarchie (PSP) und Auslastung setzen, Karten verschieben
+- **Sprints:** anlegen, ändern, starten, abschliessen und reviewen
+- **Scrum-Rahmen und Risiken:** Product Goal, Definition of Done und WIP-Limits pflegen, Risiken erfassen und bewerten
+- **Auswerten:** Retros, Planning-Poker-Runden, Berichte mit Baseline-Abweichung, Cumulative Flow, Änderungshistorie und den PSP als Text lesen
+- **Arbeitsjournal:** Einträge auslesen und Vorschläge machen, die die Person prüft und mit einem Klick übernimmt
+
+Team-Rituale bleiben beim Team: Poker spielen, Retro-Karten schreiben, Risiken löschen und Lese-Links erstellen geht nur in der Web-App. Details in [`AGENTS.md`](./AGENTS.md#tools).
+
+### GitLab-Integration
+
+- **Anmeldung** über GitLab (OAuth2); Änderungen laufen mit dem GitLab-Konto der Person
+- **Sync in beide Richtungen:** Issues, Tasks und Meilensteine (auch geschlossene) kommen aus GitLab, Änderungen in Taktline gehen sofort zurück
+- **Webhook-Receiver** für Live-Updates und ein Abgleich alle 15 Minuten als Sicherheitsnetz (siehe [Deployment](#deployment))
+- **Offenes Format:** der `gantt-meta`-Block ist dokumentiert, Skripte und `glab` können ihn ohne Taktline bearbeiten
 
 ---
 
@@ -327,7 +371,7 @@ Diese App ergänzt GitLab um Planungs-Daten, die GitLab CE nativ nicht kennt (St
 
 Format-Spec für direktes Editieren via `glab` CLI, REST-API oder KI-Agenten: siehe [`AGENTS.md`](./AGENTS.md).
 
-Agenten planen aus jedem Repo mit: `npm run skill:install` installiert den Claude-Code-Skill samt CLI global. Die Einrichtung steht in [`AGENTS.md`](./AGENTS.md#tools). Stories, Tasks, Board-Spalten, Termine und Abhängigkeiten landen direkt in GitLab. Alles, was nur in Taktline liegt, geht über die Agenten-API: Sprints, Arbeitsjournal, Product Goal, Definition of Done, WIP-Limits und Risiken lesen und pflegen; Retrospektiven, Planning Poker, Berichte, Cumulative Flow und Audit-Log lesen. Retro-Karten schreiben, Poker spielen, Risiken löschen und Lese-Links bleiben der Web-App vorbehalten.
+Agenten planen aus jedem Repo mit: `npm run skill:install` installiert den Claude-Code-Skill samt CLI global. Was er kann, steht oben unter [Mit Agenten](#mit-agenten), die Einrichtung in [`AGENTS.md`](./AGENTS.md#tools).
 
 ---
 
