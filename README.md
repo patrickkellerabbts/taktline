@@ -129,7 +129,8 @@ Der Claude-Code-Skill (`npm run skill:install`) bringt eine CLI mit, die aus jed
 - **Planen:** Stories mit Akzeptanzkriterien anlegen, in Tasks zerlegen, Termine, Abhängigkeiten, Hierarchie (PSP) und Auslastung setzen, Karten verschieben
 - **Sprints:** anlegen, ändern, starten, abschliessen und reviewen
 - **Scrum-Rahmen und Risiken:** Product Goal, Definition of Done und WIP-Limits pflegen, Risiken erfassen und bewerten
-- **Auswerten:** Retros, Planning-Poker-Runden, Berichte mit Baseline-Abweichung, Cumulative Flow, Änderungshistorie und den PSP als Text lesen
+- **Auswerten:** Retros, Planning-Poker-Runden, Berichte mit Baseline-Abweichung, Cumulative Flow und Änderungshistorie lesen
+- **Exportieren:** Gantt und PSP als PDF oder SVG, den PSP auch als Text, z.B. für einen Bericht
 - **Arbeitsjournal:** Einträge auslesen und Vorschläge machen, die die Person prüft und mit einem Klick übernimmt
 
 Team-Rituale bleiben beim Team: Poker spielen, Retro-Karten schreiben, Risiken löschen und Lese-Links erstellen geht nur in der Web-App. Details in [`AGENTS.md`](./AGENTS.md#tools).

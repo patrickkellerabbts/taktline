@@ -6,7 +6,7 @@
  *
  * Aufruf: npm run skill:install
  */
-import { copyFileSync, existsSync, mkdirSync } from 'node:fs';
+import { copyFileSync, cpSync, existsSync, mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { build } from 'esbuild';
@@ -25,12 +25,23 @@ async function main() {
     format: 'esm',
     target: 'node20.12',
     logLevel: 'warning',
-    // Gebündelte CommonJS-Pakete rufen require() auf, das es in ESM nicht gibt.
+    // pdfkit (Gantt/PSP als PDF) liest seine Schriftmetriken über __dirname.
+    // Die echte pdfkit-Datei statt der ES-Variante nehmen, damit das passt.
+    mainFields: ['main'],
+    // Gebündelte CommonJS-Pakete rufen require() und __dirname auf, die es in
+    // ESM nicht gibt. __dirname zeigt auf den Skill-Ordner, dort liegt data/.
     banner: {
-      js: "import { createRequire as __createRequire } from 'node:module';\nconst require = __createRequire(import.meta.url);",
+      js: [
+        "import { createRequire as __createRequire } from 'node:module';",
+        "import { dirname as __pathDirname } from 'node:path';",
+        "import { fileURLToPath as __fileURLToPath } from 'node:url';",
+        'const require = __createRequire(import.meta.url);',
+        'const __dirname = __pathDirname(__fileURLToPath(import.meta.url));',
+      ].join('\n'),
     },
   });
   copyFileSync(join(root, 'skills', 'taktline', 'SKILL.md'), join(target, 'SKILL.md'));
+  cpSync(join(root, 'node_modules', 'pdfkit', 'js', 'data'), join(target, 'data'), { recursive: true });
 
   console.log(`Skill installiert: ${target}`);
   if (!existsSync(config)) {

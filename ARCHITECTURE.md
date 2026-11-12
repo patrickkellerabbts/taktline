@@ -133,6 +133,10 @@ aus der Reihenfolge der Geschwister (Start, dann IID); die Taktline-CLI
 Diagramm ist reines SVG mit festen Farben, damit PNG-, SVG- und PDF-Export
 ohne das App-Stylesheet gleich aussehen.
 
+### PDF-Export ohne Browser
+
+Gantt-Druckansicht (`GanttPrintView`) und PSP-Diagramm (`PspDiagram`) sind reines SVG ohne HTML. Die Web-App druckt sie über den Browser; die Taktline-CLI rendert dieselben Komponenten mit `react-dom/server` und macht mit pdfkit und svg-to-pdfkit (beide MIT) ein Vektor-PDF (`scripts/svg-pdf.ts`). Schriften sind die PDF-Standardschriften Helvetica und Courier, eingebettet wird nichts. `paint-order` kennt svg-to-pdfkit nicht; Halos um Beschriftungen sind deshalb eigene Textebenen.
+
 ## Self-Sync vs. External-Sync — was gewinnt?
 
 Wenn ein Konflikt zwischen App und GitLab entsteht (z.B. App schreibt
@@ -240,7 +244,7 @@ Schätzrunden pro User Story (`EstimationRound`, `EstimationVote`), Deck modifiz
 
 ## Agenten-API
 
-Für Daten, die nur in der Taktline-DB liegen, gibt es Routen unter `/api/agent/*`: `sprints`, `journal`, `project` (Product Goal, DoD, WIP-Limits, Velocity, Meilensteine), `risks`, `retro`, `poker` und `reports` (`view=report|flow|audit`). Retro, Poker und Berichte sind nur lesbar: Retro-Karten und Schätzungen sind Sache des Teams. Der Agent schickt seinen GitLab-Token als Bearer-Token; `lib/agent/access.ts` prüft damit Konto, Projekt und Rolle in GitLab (Lesen ab Reporter, Schreiben ab Developer) und speichert ihn nicht. Eigene Taktline-Tokens gibt es bewusst nicht.
+Für Daten, die nur in der Taktline-DB liegen, gibt es Routen unter `/api/agent/*`: `sprints`, `journal`, `project` (Product Goal, DoD, WIP-Limits, Velocity, Meilensteine), `risks`, `retro`, `poker`, `gantt` und `reports` (`view=report|flow|audit`). Retro, Poker und Berichte sind nur lesbar: Retro-Karten und Schätzungen sind Sache des Teams. Der Agent schickt seinen GitLab-Token als Bearer-Token; `lib/agent/access.ts` prüft damit Konto, Projekt und Rolle in GitLab (Lesen ab Reporter, Schreiben ab Developer) und speichert ihn nicht. Eigene Taktline-Tokens gibt es bewusst nicht.
 
 Die Regeln stehen jeweils einmal und gelten für Web-App und Agenten gleich: `lib/agile/sprint-ops.ts`, `lib/agile/frame-ops.ts` (Product Goal, DoD, WIP) und `lib/risks/ops.ts`. Risikoänderungen von Agenten tragen im Risiko-Verlauf `RiskHistory.agent` statt einer `userId`. Der Unterschied ist nur der `Actor`: in der Web-App die angemeldete Person mit ihrem OAuth-Token, bei Agenten das Agent-Konto mit seinem eigenen Token. Im Audit-Log steht beim Agenten dessen GitLab-Username (`after.agent`).
 

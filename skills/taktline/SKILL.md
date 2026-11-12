@@ -1,6 +1,6 @@
 ---
 name: taktline
-description: Plant und pflegt Projekte in Taktline und GitLab, aus jedem Repo – User Stories und Vorgänge anlegen, Karten auf dem Kanban-Board verschieben, Termine, Fortschritt, Story Points, Abhängigkeiten, Hierarchie und Ressourcen setzen, den Projektstrukturplan (PSP) anzeigen und gliedern, Stories in Tasks zerlegen, Sprints anlegen, ändern, starten, abschliessen und reviewen, Issues Sprints zuordnen, Product Goal, Definition of Done und WIP-Limits pflegen, Risiken erfassen und bewerten, Retrospektiven, Planning-Poker-Runden, Berichte, Cumulative Flow und Änderungshistorie auslesen, Arbeitsjournale auslesen und Journal-Einträge vorschlagen. Verwenden, wenn der Nutzer Taktline nennt oder Backlog, Board, Gantt, PSP, Stories, Sprints, DoD, Risiken, Retro, Velocity, Berichte oder Arbeitsjournale eines Projekts planen oder einsehen will. Planning Poker spielen, Retro-Karten schreiben, Risiken löschen und Lese-Links gehen nur in der Web-App.
+description: Plant und pflegt Projekte in Taktline und GitLab, aus jedem Repo – User Stories und Vorgänge anlegen, Karten auf dem Kanban-Board verschieben, Termine, Fortschritt, Story Points, Abhängigkeiten, Hierarchie und Ressourcen setzen, den Projektstrukturplan (PSP) anzeigen und gliedern, PSP und Gantt als PDF oder SVG speichern, Stories in Tasks zerlegen, Sprints anlegen, ändern, starten, abschliessen und reviewen, Issues Sprints zuordnen, Product Goal, Definition of Done und WIP-Limits pflegen, Risiken erfassen und bewerten, Retrospektiven, Planning-Poker-Runden, Berichte, Cumulative Flow und Änderungshistorie auslesen, Arbeitsjournale auslesen und Journal-Einträge vorschlagen. Verwenden, wenn der Nutzer Taktline nennt oder Backlog, Board, Gantt, PSP, Stories, Sprints, DoD, Risiken, Retro, Velocity, Berichte oder Arbeitsjournale eines Projekts planen oder einsehen will. Planning Poker spielen, Retro-Karten schreiben, Risiken löschen und Lese-Links gehen nur in der Web-App.
 ---
 
 # Taktline bedienen
@@ -123,6 +123,16 @@ node ~/.claude/skills/taktline/taktline.mjs risk-update 51ea01f8 --status mitiga
 - `audit [--limit 50]`: wer wann was in Taktline geändert hat, Agenten mit `(Agent)`.
 - `psp --text`: Projektstrukturplan als Gliederung (siehe oben).
 
+## Gantt
+
+`gantt` liefert die Balken so, wie Taktline sie zeichnet: Sammelbalken mit Terminen aus den Kindern, Fortschritt, Baseline, Abhängigkeiten und Meilensteine. `gantt --pdf` speichert die Druckansicht der Web-App als PDF (Standard A3 quer, `--page A4` möglich), `gantt --svg` als SVG. Beides braucht `TAKTLINE_URL`.
+
+```bash
+node ~/.claude/skills/taktline/taktline.mjs gantt --pdf --out bericht/gantt.pdf
+```
+
+Wie beim PSP gilt: nur auf Wunsch speichern, Pfad vorher nennen, nichts ungefragt überschreiben. Bei vielen Paketen wird die Schrift auf A4 sehr klein; dann A3 vorschlagen.
+
 ## Tasks unter Stories
 
 Stories werden im Sprint Planning in Tasks zerlegt. Das sind native GitLab-Tasks unter der Story, die Schätzung steht in Stunden in der GitLab-Zeiterfassung. `tasks <story-iid>` zeigt sie mit den offenen Stunden. `task-add <story-iid> --title … --hours …` legt einen Task an.
@@ -137,11 +147,12 @@ node ~/.claude/skills/taktline/taktline.mjs task-add 42 --title "Datenmodell anl
 
 ## Projektstrukturplan (PSP)
 
-Der PSP ist die Gantt-Hierarchie, also `parent_iid` im gantt-meta-Block, kein eigenes Datenmodell. `psp` zeigt den Baum mit Codes (1, 1.2, 1.2.3), `psp --text` als eingerückte Gliederung, `psp --svg [--out datei.svg]` speichert das Baumdiagramm als SVG, genau wie der Export in der Web-App (Standard: `psp-<projekt>.svg` im aktuellen Verzeichnis). Beides eignet sich für einen Bericht. Die Codes werden nicht gespeichert: Taktline nummeriert die Geschwister nach Start, dann nach Issue-Nummer. Umhängen oder neue Termine ändern deshalb die Codes. Nenne Pakete gegenüber dem Nutzer immer mit Issue-Nummer, nicht nur mit Code.
+Der PSP ist die Gantt-Hierarchie, also `parent_iid` im gantt-meta-Block, kein eigenes Datenmodell. `psp` zeigt den Baum mit Codes (1, 1.2, 1.2.3), `psp --text` als eingerückte Gliederung, `psp --svg` bzw. `psp --pdf` speichert das Baumdiagramm wie der Export in der Web-App (Standard: `psp-<projekt>.svg/.pdf` im aktuellen Verzeichnis, PDF auf A3; `--page A4` und `--out <datei>` ändern das). Alles eignet sich für einen Bericht. Die Codes werden nicht gespeichert: Taktline nummeriert die Geschwister nach Start, dann nach Issue-Nummer. Umhängen oder neue Termine ändern deshalb die Codes. Nenne Pakete gegenüber dem Nutzer immer mit Issue-Nummer, nicht nur mit Code.
 
 ```bash
 node ~/.claude/skills/taktline/taktline.mjs psp --text
 node ~/.claude/skills/taktline/taktline.mjs psp --svg --out docs/psp.svg
+node ~/.claude/skills/taktline/taktline.mjs psp --pdf --page A4
 # Teilprojekt anlegen und Pakete darunter hängen
 node ~/.claude/skills/taktline/taktline.mjs create --title "Realisierung" --start 2026-12-01 --due 2027-01-31 --dry-run
 node ~/.claude/skills/taktline/taktline.mjs update 43 --parent 70 --dry-run
@@ -151,7 +162,7 @@ node ~/.claude/skills/taktline/taktline.mjs update 43 --clear parent
 
 - **Gliederung erst vorschlagen.** Eine neue PSP-Struktur zeigst du zuerst als Liste (Teilprojekte und welche Issues darunter kommen) und legst sie erst an, wenn der Nutzer zustimmt.
 - **Der Parent wird Summary-Task:** Er bekommt seine Termine aus den Kindern und erscheint im Gantt als Sammelbalken.
-- **SVG nur auf Wunsch speichern.** Es ist eine neue Datei im Arbeitsverzeichnis; nenn den Pfad vorher und überschreib keine bestehende Datei ohne Rückfrage.
+- **SVG und PDF nur auf Wunsch speichern.** Es ist eine neue Datei im Arbeitsverzeichnis; nenn den Pfad vorher und überschreib keine bestehende Datei ohne Rückfrage.
 - **Tasks gehören nicht in den PSP.** Sie hängen über die GitLab-Hierarchie an ihrer Story, nie über `--parent`. Stories ohne Termin und ohne Parent zeigt der PSP nicht.
 
 ## Vorgehen

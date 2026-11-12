@@ -37,7 +37,10 @@ import { buildStoryDescription, mergeCriteria } from '../src/lib/agile/story';
 import { buildPsp, pspOutline, type PspInput } from '../src/lib/psp';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { PspDiagram } from '../src/components/psp/PspDiagram';
+import { PspDiagram, layoutPsp } from '../src/components/psp/PspDiagram';
+import { GanttPrintView } from '../src/components/gantt/GanttPrintView';
+import type { GanttBar, GanttDependency, GanttMilestone } from '../src/components/gantt/GanttView';
+import { svgToPdf } from './svg-pdf';
 import {
   DependencyTypeSchema,
   parseGanttMeta,
@@ -107,7 +110,13 @@ Tasks (native GitLab-Tasks unter einer Story, Schätzung in Stunden):
 
 Projektstrukturplan (PSP = die Gantt-Hierarchie über parent_iid):
   psp [--text]                Baum mit PSP-Codes (1, 1.2, 1.2.3); --text als Gliederung
-  psp --svg [--out <datei>]   Baumdiagramm als SVG speichern (Standard: psp-<projekt>.svg)
+  psp --svg|--pdf [--out <datei>] [--page A3|A4]
+                              Baumdiagramm als SVG oder PDF speichern (Standard: psp-<projekt>.svg/.pdf)
+
+Gantt (Daten aus Taktline, braucht TAKTLINE_URL):
+  gantt                       Balken mit Sammelbalken, Abhängigkeiten und Meilensteinen
+  gantt --pdf|--svg [--out <datei>] [--page A3|A4]
+                              Druckansicht der Web-App als PDF (Standard A3 quer) oder SVG
                               Umhängen mit update <iid> --parent <iid> bzw. --clear parent,
                               Unterpaket mit create --parent <iid> --start <datum> --due <datum>
 
@@ -356,6 +365,8 @@ async function main() {
       'carry-over': { type: 'string' },
       text: { type: 'boolean' },
       svg: { type: 'boolean' },
+      pdf: { type: 'boolean' },
+      page: { type: 'string' },
       out: { type: 'string' },
       item: { type: 'string', multiple: true },
       probability: { type: 'string' },
@@ -384,6 +395,23 @@ async function main() {
   const client = new Gitlab({ host, token, camelize: false });
   const dryRun = values['dry-run'] === true;
   const print = (value: unknown) => console.log(JSON.stringify(value, null, 2));
+  /** Schreibt ein gerendertes SVG als .svg oder .pdf (Option --svg/--pdf, --out, --page). */
+  const writeGraphic = async (kind: 'psp' | 'gantt', name: string, svg: string, size: { width: number; height: number }) => {
+    const format = values.pdf ? 'pdf' : 'svg';
+    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'projekt';
+    const file = resolve(values.out ?? `${kind}-${slug}.${format}`);
+    if (!file.toLowerCase().endsWith(`.${format}`)) fail(`--out muss auf .${format} enden`);
+    const page = values.page ?? 'A3';
+    if (page !== 'A3' && page !== 'A4') fail('--page muss A3 oder A4 sein');
+    if (dryRun) return print({ project, dryRun: true, file, format, ...(format === 'pdf' ? { page } : {}) });
+    if (format === 'svg') {
+      writeFileSync(file, `<?xml version="1.0" encoding="UTF-8"?>\n${svg}\n`);
+    } else {
+      const title = `${kind === 'psp' ? 'Projektstrukturplan' : 'Gantt'} ${name}`;
+      writeFileSync(file, await svgToPdf(svg, { ...size, page, title }));
+    }
+    print({ project, file, format, ...(format === 'pdf' ? { page } : {}) });
+  };
   // Die Hierarchie von Work Items (Task unter Story) gibt es nur über GraphQL.
   const graphql = async <T,>(query: string, variables: Record<string, unknown>): Promise<T> => {
     const res = await fetch(new URL('/api/graphql', host), {
@@ -639,6 +667,74 @@ async function main() {
       return;
     }
 
+    case 'gantt': {
+      type Raw = {
+        name: string;
+        bars: Array<{ id: string; iid: number; title: string; start: string; end: string; progress: number; state: string; summary: boolean; parentId: string | null; baselineStart: string | null; baselineEnd: string | null; assignees: string[] }>;
+        milestones: Array<{ id: string; gitlabId: number; title: string; due: string | null; state: string | null }>;
+        dependencies: GanttDependency[];
+      };
+      const data = await taktline<Raw>('GET', `/api/agent/gantt?project=${encodeURIComponent(String(project))}`);
+      if (!values.svg && !values.pdf) {
+        // Ohne Exportwunsch: die Daten, wie Taktline sie zeichnet (inkl. Sammelbalken).
+        const byId = new Map(data.bars.map((b) => [b.id, b.iid]));
+        print({
+          project,
+          bars: data.bars.map((b) => ({
+            iid: b.iid,
+            title: b.title,
+            start: b.start,
+            end: b.end,
+            progress: b.progress,
+            state: b.state,
+            summary: b.summary,
+            parent: b.parentId ? (byId.get(b.parentId) ?? null) : null,
+            baselineStart: b.baselineStart,
+            baselineEnd: b.baselineEnd,
+            assignees: b.assignees,
+          })),
+          milestones: data.milestones.map((m) => ({ id: m.gitlabId, title: m.title, due: m.due, state: m.state })),
+          dependencies: data.dependencies.map((d) => ({
+            from: byId.get(d.predecessorId),
+            to: byId.get(d.successorId),
+            type: d.type,
+            lagDays: d.lagDays,
+          })),
+        });
+        return;
+      }
+      if (data.bars.length === 0 && data.milestones.length === 0) fail('Das Gantt ist leer, es gibt nichts zu zeichnen');
+      const day = (s: string) => new Date(`${s}T00:00:00`);
+      const bars: GanttBar[] = data.bars.map((b) => ({
+        id: b.id,
+        text: b.title,
+        gitlabIssueIid: b.iid,
+        start: day(b.start),
+        end: day(b.end),
+        progress: b.progress / 100,
+        state: b.state,
+        isSummary: b.summary,
+        parentId: b.parentId,
+        baselineStart: b.baselineStart ? day(b.baselineStart) : null,
+        baselineEnd: b.baselineEnd ? day(b.baselineEnd) : null,
+      }));
+      const milestones: GanttMilestone[] = data.milestones.map((m) => ({
+        id: m.id,
+        text: m.title,
+        gitlabMilestoneId: m.gitlabId,
+        date: m.due ? day(m.due) : null,
+        state: m.state ?? undefined,
+      }));
+      const name = String(project);
+      const svg = renderToStaticMarkup(
+        createElement(GanttPrintView, { bars, milestones, dependencies: data.dependencies, projectName: name }),
+      );
+      const size = svg.match(/^<svg[^>]*\swidth="([\d.]+)"[^>]*\sheight="([\d.]+)"/);
+      if (!size) fail('Das Gantt liess sich nicht zeichnen');
+      await writeGraphic('gantt', name, svg, { width: Number(size[1]), height: Number(size[2]) });
+      return;
+    }
+
     case 'psp': {
       // Gleiche Regeln wie die PSP-Seite der Web-App: Tasks gehören zur Story,
       // Stories ohne Termin und ohne Parent leben nur auf dem Board. Start ohne
@@ -664,17 +760,13 @@ async function main() {
         });
       }
       const { roots, flat } = buildPsp(items);
-      if (values.svg) {
-        // Dasselbe Diagramm wie in der Web-App (PNG/SVG-Export dort), hier ohne Browser gerendert.
+      if (values.svg || values.pdf) {
+        // Dasselbe Diagramm wie in der Web-App (Export dort), hier ohne Browser gerendert.
         if (roots.length === 0) fail('Der PSP ist leer, es gibt nichts zu zeichnen');
         const name = String(project);
         const svg = renderToStaticMarkup(createElement(PspDiagram, { roots, projectName: name, selectedIid: null }));
-        const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'projekt';
-        const file = resolve(values.out ?? `psp-${slug}.svg`);
-        if (!file.toLowerCase().endsWith('.svg')) fail('--out muss auf .svg enden');
-        if (dryRun) return print({ project, dryRun: true, file, items: flat.length });
-        writeFileSync(file, `<?xml version="1.0" encoding="UTF-8"?>\n${svg}\n`);
-        print({ project, file, items: flat.length });
+        const { width, height } = layoutPsp(roots);
+        await writeGraphic('psp', name, svg, { width, height });
         return;
       }
       if (values.text) {
