@@ -458,6 +458,8 @@ model Risk {
   // identified | in_progress | mitigated | accepted | occurred | closed
   status String @default("identified")
 
+  // Frühwarnzeichen, bei dem das Risiko als eintretend gilt.
+  trigger         String? @db.Text
   mitigationPlan  String? @db.Text
   contingencyPlan String? @db.Text
 

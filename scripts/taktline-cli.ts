@@ -90,11 +90,11 @@ Risiken (liegen in Taktline; anlegen und bewerten, nicht löschen):
   risks [--status <status>]   Register mit Bewertung vor/nach Massnahmen
   risk <id>                   ein Risiko mit Verlauf; id = die ersten Zeichen aus "risks"
   risk-create --title <text> --probability <1-5> --impact <1-5> [--category <text>]
-         [--description <text>] [--mitigation <text>] [--contingency <text>]
+         [--description <text>] [--trigger <text>] [--mitigation <text>] [--contingency <text>]
          [--owner <username>] [--review <datum>] [--wp <iid>]... [--milestone <id>]...
   risk-update <id> [dieselben Felder] [--status identified|in_progress|mitigated|accepted|occurred|closed]
          [--probability-after <1-5> --impact-after <1-5>]
-         [--clear after,owner,review,mitigation,contingency,category,description]
+         [--clear after,owner,review,trigger,mitigation,contingency,category,description]
          --wp/--milestone ersetzen die ganze Verknüpfungsliste
 
 Nur lesen (Team-Rituale und Auswertungen):
@@ -374,6 +374,7 @@ async function main() {
       'probability-after': { type: 'string' },
       'impact-after': { type: 'string' },
       category: { type: 'string' },
+      trigger: { type: 'string' },
       mitigation: { type: 'string' },
       contingency: { type: 'string' },
       owner: { type: 'string' },
@@ -1011,6 +1012,7 @@ async function main() {
       for (const [flag, key] of [
         ['description', 'description'],
         ['category', 'category'],
+        ['trigger', 'trigger'],
         ['mitigation', 'mitigation'],
         ['contingency', 'contingency'],
         ['owner', 'owner'],
@@ -1034,6 +1036,7 @@ async function main() {
           after: ['probabilityAfter', 'impactAfter'],
           owner: ['owner'],
           review: ['nextReview'],
+          trigger: ['trigger'],
           mitigation: ['mitigation'],
           contingency: ['contingency'],
           category: ['category'],

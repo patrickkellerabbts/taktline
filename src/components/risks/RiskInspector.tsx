@@ -266,6 +266,22 @@ export function RiskInspector({
           )}
         </div>
 
+        {/* Trigger */}
+        <div>
+          <div className="label">Trigger</div>
+          <textarea
+            className="input"
+            defaultValue={risk.trigger ?? ''}
+            onBlur={(e) => {
+              if ((e.target.value || null) !== (risk.trigger ?? null))
+                patch({ trigger: e.target.value || null });
+            }}
+            rows={2}
+            placeholder="Woran merken wir, dass das Risiko eintritt?"
+            style={{ width: '100%', fontSize: 12, fontFamily: 'inherit', resize: 'vertical' }}
+          />
+        </div>
+
         {/* Mitigation-Plan */}
         <div>
           <div className="label">Mitigation-Plan</div>

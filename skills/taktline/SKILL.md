@@ -106,11 +106,13 @@ Das Risikoregister liegt nur in Taktline. `risks` listet offene Risiken zuerst, 
 ```bash
 node ~/.claude/skills/taktline/taktline.mjs risks --status identified
 node ~/.claude/skills/taktline/taktline.mjs risk-create --title "Server-Abnahme verzögert sich" \
-  --probability 3 --impact 4 --category Organisation --mitigation "Termin früh fixieren" --wp 30 --dry-run
+  --probability 3 --impact 4 --category Organisation --trigger "Kein Abnahmetermin bis Ende Woche 2" \
+  --mitigation "Termin früh fixieren" --contingency "Abnahme auf Testserver" --wp 30 --dry-run
 node ~/.claude/skills/taktline/taktline.mjs risk-update 51ea01f8 --status mitigated --probability-after 2 --impact-after 2
 ```
 
 - **Bewertungen kommen vom Team.** Schlag Wahrscheinlichkeit und Auswirkung mit Begründung vor; setz sie, wenn der Nutzer zustimmt oder Werte nennt.
+- **Trigger, Massnahmen und Notfallplan getrennt halten:** `--trigger` ist das Frühwarnzeichen, an dem das Team merkt, dass das Risiko eintritt; `--mitigation` die vorbeugende Massnahme, `--contingency` die Reaktion, wenn es eingetreten ist.
 - **Löschen gibt es nicht.** Erledigte Risiken bekommen `--status closed`, eingetretene `occurred`.
 - `--owner` braucht einen Usernamen, der sich schon bei Taktline angemeldet hat. `--wp` und `--milestone` ersetzen jeweils die ganze Verknüpfungsliste.
 

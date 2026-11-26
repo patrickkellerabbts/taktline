@@ -114,6 +114,7 @@ export async function GET(request: Request) {
         r.probabilityPost !== null && r.impactPost !== null
           ? { probability: r.probabilityPost, impact: r.impactPost, score: r.probabilityPost * r.impactPost }
           : null,
+      trigger: r.trigger,
       mitigation: r.mitigationPlan,
       contingency: r.contingencyPlan,
       owner: r.owner ? { username: r.owner.username, name: r.owner.name } : null,
@@ -143,6 +144,7 @@ const Fields = {
   title: z.string().trim().min(1).max(300).optional(),
   description: z.string().nullable().optional(),
   category: z.string().nullable().optional(),
+  trigger: z.string().nullable().optional(),
   mitigation: z.string().nullable().optional(),
   contingency: z.string().nullable().optional(),
   /** Taktline-Username (wie in GitLab), null entfernt den Owner. */
@@ -214,6 +216,7 @@ export async function POST(request: Request) {
   const patch: UpdateRiskInput = {
     ...(body.description !== undefined ? { description: body.description } : {}),
     ...(body.category !== undefined ? { category: body.category } : {}),
+    ...(body.trigger !== undefined ? { trigger: body.trigger } : {}),
     ...(body.mitigation !== undefined ? { mitigationPlan: body.mitigation } : {}),
     ...(body.contingency !== undefined ? { contingencyPlan: body.contingency } : {}),
     ...(ownerUserId !== undefined ? { ownerUserId } : {}),

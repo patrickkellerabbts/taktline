@@ -86,6 +86,7 @@ export default async function RisksPage({ params, searchParams }: Props) {
     impactPre: r.impactPre,
     probabilityPost: r.probabilityPost,
     impactPost: r.impactPost,
+    trigger: r.trigger,
     mitigationPlan: r.mitigationPlan,
     contingencyPlan: r.contingencyPlan,
     owner: r.owner,
