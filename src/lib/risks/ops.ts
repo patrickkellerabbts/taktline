@@ -62,6 +62,7 @@ export type UpdateRiskInput = {
   impactPre?: number;
   probabilityPost?: number | null;
   impactPost?: number | null;
+  trigger?: string | null;
   mitigationPlan?: string | null;
   contingencyPlan?: string | null;
   ownerUserId?: string | null;
@@ -130,6 +131,7 @@ export async function updateRisk(
       impactPre: true,
       probabilityPost: true,
       impactPost: true,
+      trigger: true,
       mitigationPlan: true,
       contingencyPlan: true,
       ownerUserId: true,
@@ -229,6 +231,13 @@ export async function updateRisk(
         oldValue: existing.impactPost == null ? null : String(existing.impactPost),
         newValue: next == null ? null : String(next),
       });
+    }
+  }
+  if (patch.trigger !== undefined) {
+    const next = trimOrNull(patch.trigger);
+    if (next !== existing.trigger) {
+      data.trigger = next;
+      historyEntries.push({ field: 'trigger', oldValue: existing.trigger, newValue: next });
     }
   }
   if (patch.mitigationPlan !== undefined) {

@@ -43,6 +43,7 @@ export type Risk = {
   impactPre: number;
   probabilityPost: number | null;
   impactPost: number | null;
+  trigger: string | null;
   mitigationPlan: string | null;
   contingencyPlan: string | null;
   owner: RiskOwner | null;

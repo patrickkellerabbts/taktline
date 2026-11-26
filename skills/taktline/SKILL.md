@@ -106,11 +106,13 @@ Das Risikoregister liegt nur in Taktline. `risks` listet offene Risiken zuerst, 
 ```bash
 node ~/.claude/skills/taktline/taktline.mjs risks --status identified
 node ~/.claude/skills/taktline/taktline.mjs risk-create --title "Server-Abnahme verzögert sich" \
-  --probability 3 --impact 4 --category Organisation --mitigation "Termin früh fixieren" --wp 30 --dry-run
+  --probability 3 --impact 4 --category Organisation --trigger "Kein Abnahmetermin bis Ende Woche 2" \
+  --mitigation "Termin früh fixieren" --contingency "Abnahme auf Testserver" --wp 30 --dry-run
 node ~/.claude/skills/taktline/taktline.mjs risk-update 51ea01f8 --status mitigated --probability-after 2 --impact-after 2
 ```
 
 - **Bewertungen kommen vom Team.** Schlag Wahrscheinlichkeit und Auswirkung mit Begründung vor; setz sie, wenn der Nutzer zustimmt oder Werte nennt.
+- **Trigger, Massnahmen und Notfallplan getrennt halten:** `--trigger` ist das Frühwarnzeichen, an dem das Team merkt, dass das Risiko eintritt; `--mitigation` die vorbeugende Massnahme, `--contingency` die Reaktion, wenn es eingetreten ist.
 - **Löschen gibt es nicht.** Erledigte Risiken bekommen `--status closed`, eingetretene `occurred`.
 - `--owner` braucht einen Usernamen, der sich schon bei Taktline angemeldet hat. `--wp` und `--milestone` ersetzen jeweils die ganze Verknüpfungsliste.
 
@@ -125,7 +127,7 @@ node ~/.claude/skills/taktline/taktline.mjs risk-update 51ea01f8 --status mitiga
 
 ## Gantt
 
-`gantt` liefert die Balken so, wie Taktline sie zeichnet: Sammelbalken mit Terminen aus den Kindern, Fortschritt, Baseline, Abhängigkeiten und Meilensteine. `gantt --pdf` speichert die Druckansicht der Web-App als PDF (Standard A3 quer, `--page A4` möglich), `gantt --svg` als SVG. Beides braucht `TAKTLINE_URL`.
+`gantt` liefert die Balken so, wie Taktline sie zeichnet: Sammelbalken mit Terminen aus den Kindern, Fortschritt, Baseline, Abhängigkeiten und Meilensteine. Pro Balken stehen dazu Soll- und Ist-Stunden aus der GitLab-Zeiterfassung (`estimateHours`, `spentHours`, `null` ohne Eintrag) und die verknüpften Merge Requests mit Status und Pipeline (`mergeRequests`). Das reicht für einen Soll-Ist-Vergleich pro Arbeitspaket und für die Spur Anforderung → MR → Pipeline. `gantt --pdf` speichert die Druckansicht der Web-App als PDF (Standard A3 quer, `--page A4` möglich), `gantt --svg` als SVG. Beides braucht `TAKTLINE_URL`.
 
 ```bash
 node ~/.claude/skills/taktline/taktline.mjs gantt --pdf --out bericht/gantt.pdf
@@ -135,7 +137,7 @@ Wie beim PSP gilt: nur auf Wunsch speichern, Pfad vorher nennen, nichts ungefrag
 
 ## Tasks unter Stories
 
-Stories werden im Sprint Planning in Tasks zerlegt. Das sind native GitLab-Tasks unter der Story, die Schätzung steht in Stunden in der GitLab-Zeiterfassung. `tasks <story-iid>` zeigt sie mit den offenen Stunden. `task-add <story-iid> --title … --hours …` legt einen Task an.
+Stories werden im Sprint Planning in Tasks zerlegt. Das sind native GitLab-Tasks unter der Story, die Schätzung steht in Stunden in der GitLab-Zeiterfassung. `tasks <story-iid>` zeigt sie mit geschätzten (`estimate_hours`) und gebuchten Stunden (`spent_hours`) sowie den offenen Stunden. `task-add <story-iid> --title … --hours …` legt einen Task an.
 
 ```bash
 node ~/.claude/skills/taktline/taktline.mjs task-add 42 --title "Datenmodell anlegen" --hours 3 --dry-run
