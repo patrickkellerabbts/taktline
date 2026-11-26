@@ -149,7 +149,7 @@ type TaskNode = {
   title: string;
   state: string;
   workItemType: { name: string };
-  widgets: Array<{ type: string; timeEstimate?: number; assignees?: { nodes: Array<{ id: string; username: string }> } }>;
+  widgets: Array<{ type: string; timeEstimate?: number; totalTimeSpent?: number; assignees?: { nodes: Array<{ id: string; username: string }> } }>;
 };
 
 type Issue = {
@@ -602,7 +602,7 @@ async function main() {
       }>(
         `query($path: ID!, $iid: String!) { project(fullPath: $path) { workItems(iids: [$iid]) { nodes { widgets { type
           ... on WorkItemWidgetHierarchy { children(first: 100) { nodes { iid title state workItemType { name }
-            widgets { type ... on WorkItemWidgetTimeTracking { timeEstimate }
+            widgets { type ... on WorkItemWidgetTimeTracking { timeEstimate totalTimeSpent }
               ... on WorkItemWidgetAssignees { assignees { nodes { id username } } } } } } } } } } } }`,
         { path, iid: String(story.iid) },
       );
@@ -610,12 +610,15 @@ async function main() {
       const tasks = children
         .filter((c) => c.workItemType.name === 'Task')
         .map((c) => {
-          const estimate = c.widgets.find((w) => w.type === 'TIME_TRACKING')?.timeEstimate ?? 0;
+          const time = c.widgets.find((w) => w.type === 'TIME_TRACKING');
+          const estimate = time?.timeEstimate ?? 0;
+          const spent = time?.totalTimeSpent ?? 0;
           return {
             iid: Number(c.iid),
             title: c.title,
             state: c.state === 'CLOSED' ? 'closed' : 'opened',
             estimate_hours: estimate ? estimate / 3600 : null,
+            spent_hours: spent ? spent / 3600 : null,
             assignees: (c.widgets.find((w) => w.type === 'ASSIGNEES')?.assignees?.nodes ?? []).map((a) => a.username),
           };
         });
@@ -626,6 +629,7 @@ async function main() {
         tasks,
         done: tasks.length - open.length,
         remaining_hours: open.reduce((sum, t) => sum + (t.estimate_hours ?? 0), 0),
+        spent_hours: tasks.reduce((sum, t) => sum + (t.spent_hours ?? 0), 0),
       });
       return;
     }
@@ -671,7 +675,9 @@ async function main() {
     case 'gantt': {
       type Raw = {
         name: string;
-        bars: Array<{ id: string; iid: number; title: string; start: string; end: string; progress: number; state: string; summary: boolean; parentId: string | null; baselineStart: string | null; baselineEnd: string | null; assignees: string[] }>;
+        bars: Array<{ id: string; iid: number; title: string; start: string; end: string; progress: number; state: string; summary: boolean; parentId: string | null; baselineStart: string | null; baselineEnd: string | null; assignees: string[];
+          estimateHours: number | null; spentHours: number | null;
+          mergeRequests: Array<{ iid: number; title: string; state: string; pipelineStatus: string | null; webUrl: string }> }>;
         milestones: Array<{ id: string; gitlabId: number; title: string; due: string | null; state: string | null }>;
         dependencies: GanttDependency[];
       };
@@ -693,6 +699,9 @@ async function main() {
             baselineStart: b.baselineStart,
             baselineEnd: b.baselineEnd,
             assignees: b.assignees,
+            estimateHours: b.estimateHours,
+            spentHours: b.spentHours,
+            mergeRequests: b.mergeRequests,
           })),
           milestones: data.milestones.map((m) => ({ id: m.gitlabId, title: m.title, due: m.due, state: m.state })),
           dependencies: data.dependencies.map((d) => ({
